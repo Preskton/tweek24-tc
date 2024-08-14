@@ -1,122 +1,146 @@
-// create metadata for all the available functions to pass to completions API
 const tools = [
   {
-    type: 'function',
+    type: "function",
     function: {
-      name: 'checkInventory',
-      say: 'Let me check our inventory right now.',
-      description: 'Check the inventory of airpods, airpods pro or airpods max.',
+      name: "scheduleTour",
+      description: "Schedules a tour for the user at the apartment complex.",
       parameters: {
-        type: 'object',
+        type: "object",
         properties: {
-          model: {
-            type: 'string',
-            'enum': ['airpods', 'airpods pro', 'airpods max'],
-            description: 'The model of airpods, either the airpods, airpods pro or airpods max',
+          date: {
+            type: "string",
+            description:
+              "The date the user wants to schedule the tour for (YYYY-MM-DD).",
+          },
+          time: {
+            type: "string",
+            description:
+              'The time the user wants to schedule the tour for (e.g., "10:00 AM").',
+          },
+          type: {
+            type: "string",
+            enum: ["in-person", "self-guided"],
+            description: "The type of tour, either in-person or self-guided.",
+          },
+          apartmentType: {
+            type: "string",
+            enum: ["studio", "one-bedroom", "two-bedroom", "three-bedroom"],
+            description:
+              "The layout of the apartment the user is interested in.",
           },
         },
-        required: ['model'],
+        required: ["date", "time", "type", "apartmentType"],
       },
-      returns: {
-        type: 'object',
-        properties: {
-          stock: {
-            type: 'integer',
-            description: 'An integer containing how many of the model are in currently in stock.'
-          }
-        }
-      }
     },
   },
   {
-    type: 'function',
+    type: "function",
     function: {
-      name: 'checkPrice',
-      say: 'Let me check the price, one moment.',
-      description: 'Check the price of given model of airpods, airpods pro or airpods max.',
+      name: "checkAvailability",
+      description:
+        "Checks the availability of tour slots based on the user’s preferences.",
       parameters: {
-        type: 'object',
+        type: "object",
         properties: {
-          model: {
-            type: 'string',
-            'enum': ['airpods', 'airpods pro', 'airpods max'],
-            description: 'The model of airpods, either the airpods, airpods pro or airpods max',
+          date: {
+            type: "string",
+            description:
+              "The date the user wants to check for tour availability (YYYY-MM-DD).",
+          },
+          time: {
+            type: "string",
+            description:
+              'The time the user wants to check for availability (e.g., "10:00 AM").',
+          },
+          type: {
+            type: "string",
+            enum: ["in-person", "self-guided"],
+            description: "The type of tour, either in-person or self-guided.",
+          },
+          apartmentType: {
+            type: "string",
+            enum: ["studio", "one-bedroom", "two-bedroom", "three-bedroom"],
+            description:
+              "The layout of the apartment the user is interested in.",
           },
         },
-        required: ['model'],
+        required: ["date", "type", "apartmentType"],
       },
-      returns: {
-        type: 'object',
-        properties: {
-          price: {
-            type: 'integer',
-            description: 'the price of the model'
-          }
-        }
-      }
     },
   },
   {
-    type: 'function',
+    type: "function",
     function: {
-      name: 'placeOrder',
-      say: 'All right, I\'m just going to ring that up in our system.',
-      description: 'Places an order for a set of airpods.',
+      name: "listAvailableApartments",
+      description:
+        "Lists available apartments based on optional user criteria.",
       parameters: {
-        type: 'object',
+        type: "object",
         properties: {
-          model: {
-            type: 'string',
-            'enum': ['airpods', 'airpods pro'],
-            description: 'The model of airpods, either the regular or pro',
+          date: {
+            type: "string",
+            description:
+              "The move-in date the user prefers (optional, YYYY-MM-DD).",
           },
-          quantity: {
-            type: 'integer',
-            description: 'The number of airpods they want to order',
+          budget: {
+            type: "integer",
+            description:
+              "The budget the user has for rent per month (optional).",
+          },
+          apartmentType: {
+            type: "string",
+            enum: ["studio", "one-bedroom", "two-bedroom", "three-bedroom"],
+            description:
+              "The layout of the apartment the user is interested in (optional).",
           },
         },
-        required: ['type', 'quantity'],
+        required: [],
       },
-      returns: {
-        type: 'object',
-        properties: {
-          price: {
-            type: 'integer',
-            description: 'The total price of the order including tax'
-          },
-          orderNumber: {
-            type: 'integer',
-            description: 'The order number associated with the order.'
-          }
-        }
-      }
     },
   },
   {
-    type: 'function',
+    type: "function",
     function: {
-      name: 'transferCall',
-      say: 'One moment while I transfer your call.',
-      description: 'Transfers the customer to a live agent in case they request help from a real person.',
+      name: "checkExistingAppointments",
+      description: "Retrieves the list of appointments already booked.",
       parameters: {
-        type: 'object',
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "commonInquiries",
+      description:
+        "Handles common inquiries such as pet policy, fees, and other complex details, with the option to specify the apartment type.",
+      parameters: {
+        type: "object",
         properties: {
-          callSid: {
-            type: 'string',
-            description: 'The unique identifier for the active phone call.',
+          inquiryType: {
+            type: "string",
+            enum: [
+              "pet policy",
+              "fees",
+              "parking",
+              "specials",
+              "income requirements",
+              "utilities",
+            ],
+            description:
+              "The type of inquiry the user wants information about.",
+          },
+          apartmentType: {
+            type: "string",
+            enum: ["studio", "one-bedroom", "two-bedroom", "three-bedroom"],
+            description:
+              "The apartment type for which the inquiry is being made (optional).",
           },
         },
-        required: ['callSid'],
+        required: ["inquiryType"],
       },
-      returns: {
-        type: 'object',
-        properties: {
-          status: {
-            type: 'string',
-            description: 'Whether or not the customer call was successfully transfered'
-          },
-        }
-      }
     },
   },
 ];

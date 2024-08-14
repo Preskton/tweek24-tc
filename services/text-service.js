@@ -1,4 +1,4 @@
-const EventEmitter = require('events');
+const EventEmitter = require("events");
 
 class TextService extends EventEmitter {
   constructor(websocket) {
@@ -6,11 +6,11 @@ class TextService extends EventEmitter {
     this.ws = websocket;
   }
 
-  sendText (text, last) {
-    console.log('Sending text: ', text, last);
+  sendText(text, last) {
+    console.log("[TextService] Sending text: ", text, last);
     this.ws.send(
       JSON.stringify({
-        type: 'text',
+        type: "text",
         token: text,
         last: last,
       })
@@ -18,4 +18,4 @@ class TextService extends EventEmitter {
   }
 }
 
-module.exports = {TextService};
+module.exports = { TextService };
