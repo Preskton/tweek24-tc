@@ -17,7 +17,7 @@ app.post("/incoming", (req, res) => {
   try {
     const response = `<Response>
       <Connect>
-        <Voxray url="wss://${process.env.SERVER}/sockets" welcomeGreeting="${welcomePrompt}" voice="en-US-Journey-O"/>
+        <Voxray url="wss://${process.env.SERVER}/sockets" welcomeGreeting="${welcomePrompt}" voice="en-US-Journey-O" enableInterimResult="true" />
       </Connect>
     </Response>`;
     res.type("text/xml");
