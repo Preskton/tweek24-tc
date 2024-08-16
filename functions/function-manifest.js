@@ -2,6 +2,73 @@ const tools = [
   {
     type: "function",
     function: {
+      name: "sendAppointmentConfirmationSms",
+      description:
+        "Sends an SMS confirmation for a scheduled tour to the user.",
+      parameters: {
+        type: "object",
+        properties: {
+          appointmentDetails: {
+            type: "object",
+            properties: {
+              date: {
+                type: "string",
+                description: "The date of the scheduled tour (YYYY-MM-DD).",
+              },
+              time: {
+                type: "string",
+                description:
+                  "The time of the scheduled tour (e.g., '10:00 AM').",
+              },
+              type: {
+                type: "string",
+                enum: ["in-person", "self-guided"],
+                description:
+                  "The type of tour (either in-person or self-guided).",
+              },
+              apartmentType: {
+                type: "string",
+                enum: ["studio", "one-bedroom", "two-bedroom", "three-bedroom"],
+                description: "The type of apartment for the tour.",
+              },
+            },
+            required: ["date", "time", "type", "apartmentType"],
+          },
+          to: {
+            type: "string",
+            description: "The user's phone number (to send the SMS).",
+          },
+          from: {
+            type: "string",
+            description:
+              "The phone number used to send the SMS (Twilio 'from' number).",
+          },
+          userProfile: {
+            type: "object",
+            properties: {
+              firstName: {
+                type: "string",
+                description: "The user's first name.",
+              },
+              lastName: {
+                type: "string",
+                description: "The user's last name.",
+              },
+              email: {
+                type: "string",
+                description: "The user's email address.",
+              },
+            },
+            required: ["firstName"],
+          },
+        },
+        required: ["appointmentDetails", "to", "from", "userProfile"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "scheduleTour",
       description: "Schedules a tour for the user at the apartment complex.",
       parameters: {

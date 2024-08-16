@@ -1,4 +1,5 @@
 const mockDatabase = require("../data/mock-database");
+const twilio = require("twilio");
 
 // Utility function to normalize the time format
 function normalizeTimeFormat(time) {
@@ -11,6 +12,72 @@ function normalizeTimeFormat(time) {
   if (hour === 0) hour = 12;
 
   return `${hour}:${minutes} ${period}`;
+}
+
+// Function to send SMS confirmation for a scheduled tour
+async function sendAppointmentConfirmationSms(args) {
+  const { appointmentDetails, to, from, userProfile } = args;
+
+  // Check if appointment details are complete
+  if (
+    !appointmentDetails ||
+    !appointmentDetails.date ||
+    !appointmentDetails.time ||
+    !appointmentDetails.type ||
+    !appointmentDetails.apartmentType
+  ) {
+    return {
+      status: "error",
+      message:
+        "The SMS could not be sent because some appointment details were incomplete.",
+    };
+  }
+
+  // Check if phone numbers are available
+  if (!to || !from) {
+    return {
+      status: "error",
+      message:
+        "The SMS could not be sent because either the 'to' or 'from' phone numbers were missing.",
+    };
+  }
+
+  // Personalize the message using the userProfile
+  const name = userProfile?.firstName || "user";
+  const apartmentType = appointmentDetails.apartmentType;
+  const tourType =
+    appointmentDetails.type === "in-person" ? "an in-person" : "a self-guided";
+  const message = `Hi ${name}, your tour for a ${apartmentType} apartment at Parkview is confirmed for ${appointmentDetails.date} at ${appointmentDetails.time}. This will be ${tourType} tour. We'll be ready for your visit! Let us know if you have any questions.`;
+
+  // Send SMS using Twilio API
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const client = twilio(accountSid, authToken);
+
+  try {
+    const smsResponse = await client.messages.create({
+      body: message,
+      from: to, // The "to" is the Twilio number (sender)
+      to: from, // The "from" is the user's phone number (recipient)
+    });
+
+    console.log(
+      `[sendAppointmentConfirmationSms] SMS sent successfully: ${smsResponse.sid}`
+    );
+
+    return {
+      status: "success",
+      message: `An SMS confirmation has been sent to ${from}.`,
+    };
+  } catch (error) {
+    console.error(
+      `[sendAppointmentConfirmationSms] Error sending SMS: ${error.message}`
+    );
+    return {
+      status: "error",
+      message: "An error occurred while sending the SMS confirmation.",
+    };
+  }
 }
 
 // Function to schedule a tour
@@ -306,6 +373,7 @@ async function listAvailableApartments(args) {
 
 // Export all functions
 module.exports = {
+  sendAppointmentConfirmationSms,
   scheduleTour,
   checkAvailability,
   checkExistingAppointments,
