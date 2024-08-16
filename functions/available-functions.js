@@ -23,9 +23,11 @@ async function scheduleTour(args) {
   );
   console.log(`[scheduleTour] Received arguments:`, args);
 
+  // Normalize the time input
   const normalizedTime = normalizeTimeFormat(time);
   console.log(`[scheduleTour] Normalized Time: ${normalizedTime}`);
 
+  // Find the index of the matching available appointment slot
   const index = mockDatabase.availableAppointments.findIndex(
     (slot) =>
       slot.date === date &&
@@ -36,14 +38,16 @@ async function scheduleTour(args) {
 
   console.log(`[scheduleTour] Index found: ${index}`);
 
+  // If no matching slot is found, return a message indicating unavailability
   if (index === -1) {
     console.log(`[scheduleTour] The requested slot is not available.`);
     return {
-      status: "error",
+      available: false,
       message: `The ${normalizedTime} slot on ${date} is no longer available. Would you like to choose another time or date?`,
     };
   }
 
+  // Schedule the appointment and remove the slot from available appointments
   mockDatabase.appointments.push({
     date,
     time: normalizedTime,
@@ -54,11 +58,11 @@ async function scheduleTour(args) {
   mockDatabase.availableAppointments.splice(index, 1); // Remove the slot from available appointments
 
   console.log(`[scheduleTour] Appointment successfully scheduled.`);
+
+  // Return confirmation message for the successful scheduling
   return {
-    status: "success",
-    data: {
-      message: `Your tour is scheduled for ${date} at ${normalizedTime}. Would you like a confirmation via SMS?`,
-    },
+    available: true,
+    message: `Your tour is scheduled for ${date} at ${normalizedTime}. Would you like a confirmation via SMS?`,
   };
 }
 
@@ -72,83 +76,118 @@ async function checkAvailability(args) {
   );
   console.log(`[checkAvailability] Received arguments:`, args);
 
-  let availableSlots = mockDatabase.availableAppointments.filter(
+  // Step 1: Check for missing fields and create messages for the LLM to ask the user for them
+  const missingFields = [];
+
+  if (!date) {
+    missingFields.push("date");
+  }
+
+  if (!type) {
+    missingFields.push("tour type (e.g., in-person or self-guided)");
+  }
+
+  if (!apartmentType) {
+    missingFields.push("apartment type (e.g., studio, one-bedroom, etc.)");
+  }
+
+  // If there are missing fields, return the structured message for the LLM to prompt the user
+  if (missingFields.length > 0) {
+    return {
+      missing_fields: missingFields,
+      message: `Please provide the following details: ${missingFields.join(
+        ", "
+      )}.`,
+    };
+  }
+
+  let normalizedTime = null;
+  if (time) {
+    normalizedTime = normalizeTimeFormat(time);
+  }
+
+  // Step 2: Check for an exact match (date, time, type, apartmentType)
+  let exactMatchSlot = null;
+  if (time) {
+    exactMatchSlot = mockDatabase.availableAppointments.find(
+      (slot) =>
+        slot.date === date &&
+        slot.time === normalizedTime &&
+        slot.type === type &&
+        slot.apartmentType === apartmentType
+    );
+  }
+
+  if (exactMatchSlot) {
+    console.log(`[checkAvailability] Exact match found.`);
+    return {
+      availableSlots: [exactMatchSlot],
+      message: `The ${time} slot on ${date} is available for an ${type} tour of a ${apartmentType} apartment. Would you like to book this?`,
+    };
+  }
+
+  // Step 3: Check for similar matches (same date, type, apartmentType but different time)
+  let similarDateSlots = mockDatabase.availableAppointments.filter(
     (slot) =>
       slot.date === date &&
       slot.type === type &&
       slot.apartmentType === apartmentType
   );
 
-  console.log(`[checkAvailability] Available slots found:`, availableSlots);
-
-  const requestedSlot = availableSlots.find((slot) => slot.time === time);
-
-  if (requestedSlot) {
-    console.log(`[checkAvailability] The requested slot is available.`);
-    return {
-      status: "success",
-      data: {
-        availableSlots: [requestedSlot],
-        message: `The ${time} slot on ${date} is available for an ${type} tour of a ${apartmentType} apartment.`,
-      },
-    };
-  } else {
-    availableSlots = availableSlots.filter((slot) => slot.time !== time);
+  if (similarDateSlots.length > 0) {
     console.log(
-      `[checkAvailability] Alternate available slots:`,
-      availableSlots
+      `[checkAvailability] Similar matches found (different time on the same date).`
     );
-
-    if (availableSlots.length > 0) {
-      return {
-        status: "success",
-        data: {
-          availableSlots,
-          message: `The ${time} slot on ${date} isn't available. Here are the available slots on ${date}: ${availableSlots
-            .map((slot) => slot.time)
-            .join(", ")}.`,
-        },
-      };
-    } else {
-      const broaderSlots = mockDatabase.availableAppointments.filter(
-        (slot) => slot.apartmentType === apartmentType && slot.type === type
-      );
-
-      console.log(`[checkAvailability] Broader available slots:`, broaderSlots);
-
-      if (broaderSlots.length > 0) {
-        return {
-          status: "success",
-          data: {
-            availableSlots: broaderSlots,
-            message: `There are no available slots on ${date} for a ${apartmentType} apartment, but we have these options on other dates: ${broaderSlots
-              .map((slot) => `${slot.date} at ${slot.time}`)
-              .join(", ")}.`,
-          },
-        };
-      } else {
-        console.log(`[checkAvailability] No available slots found.`);
-        return {
-          status: "error",
-          message: `There are no available slots for a ${apartmentType} apartment at this time.`,
-        };
-      }
-    }
+    return {
+      availableSlots: similarDateSlots,
+      message: `The ${time} slot on ${date} isn't available. Here are other available times for that day: ${similarDateSlots
+        .map((slot) => slot.time)
+        .join(", ")}. Would any of these work for you?`,
+    };
   }
+
+  // Step 4: Check for broader matches (same type, apartmentType but different date)
+  let broaderSlots = mockDatabase.availableAppointments.filter(
+    (slot) => slot.type === type && slot.apartmentType === apartmentType
+  );
+
+  if (broaderSlots.length > 0) {
+    console.log(`[checkAvailability] Broader matches found (different date).`);
+    return {
+      availableSlots: broaderSlots,
+      message: `There are no available slots on ${date} for a ${apartmentType} apartment, but here are other available dates: ${broaderSlots
+        .map((slot) => `${slot.date} at ${slot.time}`)
+        .join(", ")}. Would any of these work for you?`,
+    };
+  }
+
+  // Step 5: If no matches are found at all
+  console.log(`[checkAvailability] No available slots found.`);
+  return {
+    availableSlots: [],
+    message: `There are no available slots for a ${apartmentType} apartment at this time. Would you like to explore other options or check availability later?`,
+  };
 }
 
 // Function to check existing appointments
 async function checkExistingAppointments() {
   const userAppointments = mockDatabase.appointments;
 
+  // If user has appointments, return them
   if (userAppointments.length > 0) {
     return {
-      status: "success",
-      data: userAppointments,
+      appointments: userAppointments,
+      message: `You have the following appointments scheduled: ${userAppointments
+        .map(
+          (appt) =>
+            `${appt.date} at ${appt.time} for a ${appt.apartmentType} tour (${appt.type} tour).`
+        )
+        .join("\n")}`,
     };
   } else {
+    // No appointments found
     return {
-      status: "error",
+      appointments: [],
       message:
         "You don't have any appointments scheduled. Would you like to book a tour or check availability?",
     };
@@ -157,25 +196,53 @@ async function checkExistingAppointments() {
 
 // Function to handle common inquiries
 async function commonInquiries({ inquiryType, apartmentType }) {
+  // Map the inquiry types to the database field names
+  const inquiryMapping = {
+    "pet policy": "petPolicy",
+    "income requirements": "incomeRequirements",
+    location: "location",
+    address: "location", // Map 'address' to 'location' as well
+  };
+
+  // If there's a mapped field, use it; otherwise, use the inquiryType directly
+  const inquiryField = inquiryMapping[inquiryType] || inquiryType;
+
   let inquiryDetails;
 
   if (apartmentType) {
-    inquiryDetails = mockDatabase.apartmentDetails[apartmentType][inquiryType];
+    // Return specific details for the given apartment type
+    inquiryDetails = mockDatabase.apartmentDetails[apartmentType][inquiryField];
+
+    // If inquiry is for location/address, format the location details
+    if (inquiryField === "location" && inquiryDetails) {
+      inquiryDetails = `${inquiryDetails.street}, ${inquiryDetails.city}, ${inquiryDetails.state}, ${inquiryDetails.zipCode}`;
+    }
   } else {
+    // Return general details across all apartment types
     inquiryDetails = Object.keys(mockDatabase.apartmentDetails)
-      .map((key) => mockDatabase.apartmentDetails[key][inquiryType])
+      .map((key) => {
+        const details = mockDatabase.apartmentDetails[key][inquiryField];
+        if (inquiryField === "location" && details) {
+          return `${details.street}, ${details.city}, ${details.state}, ${details.zipCode}`;
+        }
+        return details;
+      })
       .filter(Boolean)
       .join(" ");
   }
 
+  // Return the structured result based on the inquiryDetails
   if (inquiryDetails) {
     return {
-      status: "success",
-      data: { inquiryDetails },
+      inquiryDetails,
+      message: `Here are the details about ${inquiryType} for the ${
+        apartmentType ? apartmentType : "available apartments"
+      }: ${inquiryDetails}`,
     };
   } else {
+    // Return structured JSON indicating no information available
     return {
-      status: "error",
+      inquiryDetails: null,
       message: `I'm sorry, I don't have information about ${inquiryType}.`,
     };
   }
@@ -192,7 +259,7 @@ async function listAvailableApartments(args) {
     // Filter based on user input
     if (args.date) {
       apartments = apartments.filter(
-        (apt) => new Date(apt.availabilityDate) <= new Date(args.date)
+        (apt) => new Date(apt.moveInDate) <= new Date(args.date)
       );
     }
     if (args.budget) {
@@ -202,27 +269,36 @@ async function listAvailableApartments(args) {
       apartments = apartments.filter((apt) => apt.type === args.apartmentType);
     }
 
+    // Summarize available apartments
     const summary = apartments
       .map(
         (apt) =>
           `${apt.layout}: ${apt.rent}/month, available from ${
-            apt.availabilityDate
+            apt.moveInDate
           }. Features: ${apt.features.join(", ")}.`
       )
       .join("\n\n");
 
-    return {
-      status: "success",
-      data: {
+    // If apartments are found, return the structured response
+    if (apartments.length > 0) {
+      return {
         availableApartments: summary,
-      },
-    };
+        message: `Here are the available apartments based on your search: \n\n${summary}`,
+      };
+    } else {
+      // No apartments found based on the filters
+      return {
+        availableApartments: [],
+        message: "No apartments are available that match your search criteria.",
+      };
+    }
   } catch (error) {
     console.log(
       `[listAvailableApartments] Error listing available apartments: ${error.message}`
     );
+    // Return error message as structured JSON
     return {
-      status: "error",
+      availableApartments: null,
       message: "An error occurred while listing available apartments.",
     };
   }

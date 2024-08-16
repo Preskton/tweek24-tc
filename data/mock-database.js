@@ -1,5 +1,6 @@
 const mockDatabase = {
   availableAppointments: [
+    // Existing Week
     {
       date: "2024-09-02",
       time: "10:00 AM",
@@ -54,6 +55,130 @@ const mockDatabase = {
       type: "in-person",
       apartmentType: "three-bedroom",
     },
+
+    // Extended Week 1
+    {
+      date: "2024-09-11",
+      time: "8:00 AM",
+      type: "in-person",
+      apartmentType: "studio",
+    },
+    {
+      date: "2024-09-11",
+      time: "11:00 AM",
+      type: "in-person",
+      apartmentType: "one-bedroom",
+    },
+    {
+      date: "2024-09-11",
+      time: "3:00 PM",
+      type: "self-guided",
+      apartmentType: "two-bedroom",
+    },
+    {
+      date: "2024-09-12",
+      time: "1:00 PM",
+      type: "in-person",
+      apartmentType: "three-bedroom",
+    },
+    {
+      date: "2024-09-12",
+      time: "4:00 PM",
+      type: "in-person",
+      apartmentType: "one-bedroom",
+    },
+    {
+      date: "2024-09-13",
+      time: "9:00 AM",
+      type: "self-guided",
+      apartmentType: "studio",
+    },
+    {
+      date: "2024-09-13",
+      time: "2:00 PM",
+      type: "in-person",
+      apartmentType: "two-bedroom",
+    },
+    {
+      date: "2024-09-14",
+      time: "10:00 AM",
+      type: "in-person",
+      apartmentType: "three-bedroom",
+    },
+    {
+      date: "2024-09-14",
+      time: "4:00 PM",
+      type: "self-guided",
+      apartmentType: "two-bedroom",
+    },
+    {
+      date: "2024-09-15",
+      time: "12:00 PM",
+      type: "in-person",
+      apartmentType: "studio",
+    },
+
+    // Extended Week 2
+    {
+      date: "2024-09-16",
+      time: "11:00 AM",
+      type: "in-person",
+      apartmentType: "two-bedroom",
+    },
+    {
+      date: "2024-09-16",
+      time: "3:00 PM",
+      type: "in-person",
+      apartmentType: "three-bedroom",
+    },
+    {
+      date: "2024-09-17",
+      time: "9:00 AM",
+      type: "self-guided",
+      apartmentType: "one-bedroom",
+    },
+    {
+      date: "2024-09-17",
+      time: "2:00 PM",
+      type: "in-person",
+      apartmentType: "studio",
+    },
+    {
+      date: "2024-09-18",
+      time: "4:00 PM",
+      type: "in-person",
+      apartmentType: "two-bedroom",
+    },
+    {
+      date: "2024-09-18",
+      time: "12:00 PM",
+      type: "self-guided",
+      apartmentType: "three-bedroom",
+    },
+    {
+      date: "2024-09-19",
+      time: "10:00 AM",
+      type: "in-person",
+      apartmentType: "one-bedroom",
+    },
+    {
+      date: "2024-09-19",
+      time: "3:00 PM",
+      type: "in-person",
+      apartmentType: "two-bedroom",
+    },
+    {
+      date: "2024-09-20",
+      time: "1:00 PM",
+      type: "in-person",
+      apartmentType: "three-bedroom",
+    },
+    {
+      date: "2024-09-20",
+      time: "5:00 PM",
+      type: "self-guided",
+      apartmentType: "studio",
+    },
   ],
   appointments: [],
   apartmentDetails: {
@@ -61,7 +186,7 @@ const mockDatabase = {
       layout: "Studio",
       squareFeet: 450,
       rent: 1050,
-      availabilityDate: "2024-09-15",
+      moveInDate: "2024-09-15",
       features: ["1 bathroom", "open kitchen", "private balcony"],
       petPolicy: "Cats and small dogs allowed with a fee.",
       fees: {
@@ -84,7 +209,7 @@ const mockDatabase = {
       layout: "One-bedroom",
       squareFeet: 600,
       rent: 1200,
-      availabilityDate: "2024-09-20",
+      moveInDate: "2024-09-20",
       features: ["1 bedroom", "1 bathroom", "walk-in closet", "balcony"],
       petPolicy: "Cats and dogs allowed with a fee.",
       fees: {
@@ -107,7 +232,7 @@ const mockDatabase = {
       layout: "Two-bedroom",
       squareFeet: 950,
       rent: 1800,
-      availabilityDate: "2024-09-10",
+      moveInDate: "2024-09-10",
       features: ["2 bedrooms", "2 bathrooms", "walk-in closets", "balcony"],
       petPolicy: "Cats and dogs allowed with a fee.",
       fees: {
@@ -130,7 +255,7 @@ const mockDatabase = {
       layout: "Three-bedroom",
       squareFeet: 1200,
       rent: 2500,
-      availabilityDate: "2024-09-25",
+      moveInDate: "2024-09-25",
       features: [
         "3 bedrooms",
         "2 bathrooms",
