@@ -4,8 +4,11 @@ require("colors");
 const express = require("express");
 const ExpressWs = require("express-ws");
 
+//const { GptService } = require("./services/gpt-service-streaming");
 const { GptService } = require("./services/gpt-service-non-streaming");
 const { TextService } = require("./services/text-service");
+const { EndSessionService } = require("./services/end-session-service");
+
 //const welcomePrompt = require("./prompts/welcomePrompt");
 const customerProfiles = require("./data/personalization");
 
@@ -13,6 +16,88 @@ const app = express();
 ExpressWs(app);
 
 const PORT = process.env.PORT || 3000;
+
+async function processUserInputForHandoff(userInput) {
+  const handoffKeywords = [
+    "live agent",
+    "real person",
+    "talk to a representative",
+    "transfer me to a human",
+    "speak to a person",
+    "customer service",
+  ];
+
+  // Check if the input contains any of the keywords
+  if (
+    handoffKeywords.some((keyword) =>
+      userInput.toLowerCase().includes(keyword.toLowerCase())
+    )
+  ) {
+    console.log(`[App.js] Live agent handoff requested by user input.`);
+    return true; // Signals that we should perform a handoff
+  }
+  return false; // No handoff needed
+}
+
+async function handleLiveAgentHandoff(
+  gptService,
+  endSessionService,
+  textService,
+  userProfile,
+  userInput
+) {
+  const name = userProfile?.profile?.firstName
+    ? userProfile.profile.firstName
+    : ""; // Get user's name if available
+
+  const nameIntroOptions = name
+    ? [
+        `Sure ${name},`,
+        `Okay ${name},`,
+        `Alright ${name},`,
+        `Got it ${name},`,
+        `Certainly ${name},`,
+      ]
+    : ["Sure,", "Okay,", "Alright,", "Got it,", "Certainly,"];
+
+  const randomIntro =
+    nameIntroOptions[Math.floor(Math.random() * nameIntroOptions.length)];
+
+  const handoffMessages = [
+    `${randomIntro} one moment, I'll transfer you to a live agent now.`,
+    `${randomIntro} let me get a live agent to assist you. One moment please.`,
+    `${randomIntro} I'll connect you with a live person right away. Just a moment.`,
+    `${randomIntro} sure thing, I'll transfer you to customer service. Please hold for a moment.`,
+  ];
+
+  const randomHandoffMessage =
+    handoffMessages[Math.floor(Math.random() * handoffMessages.length)];
+
+  console.log(`[App.js] Hand off message: ${randomHandoffMessage}`);
+
+  // Send the random handoff message to the user
+  textService.sendText(randomHandoffMessage, true); // Final message before handoff
+
+  // Add the final user input to userContext for summarization
+  gptService.updateUserContext("user", userInput);
+
+  // Add the randomHandoffMessage to the userContext
+  gptService.updateUserContext("assistant", randomHandoffMessage);
+
+  // Proceed with summarizing the conversation, including the latest messages
+  const conversationSummary = await gptService.summarizeConversation();
+
+  // End the session and include the conversation summary in the handoff data
+  // Introduce a delay before ending the session
+  setTimeout(() => {
+    // End the session and include the conversation summary in the handoff data
+    endSessionService.endSession({
+      reasonCode: "live-agent-handoff",
+      reason: "User requested to speak to a live agent.",
+      conversationSummary: conversationSummary,
+    });
+  }, 1000); // 1 second delay
+}
 
 async function handleDtmfInput(
   digit,
@@ -76,7 +161,7 @@ async function handleDtmfInput(
 app.post("/incoming", (req, res) => {
   try {
     const response = `<Response>
-      <Connect>
+      <Connect action="https://voxray-6456.twil.io/live-agent-handoff">
         <Voxray url="wss://${process.env.SERVER}/sockets" voice="en-US-Journey-O" dtmfDetection="true" interruptByDtmf="true" />
       </Connect>
     </Response>`;
@@ -92,6 +177,7 @@ app.ws("/sockets", (ws) => {
     ws.on("error", console.error);
 
     const gptService = new GptService();
+    const endSessionService = new EndSessionService(ws);
     const textService = new TextService(ws);
 
     let interactionCount = 0;
@@ -146,14 +232,27 @@ app.ws("/sockets", (ws) => {
           ? `Generate a personalized greeting for ${userProfile.profile.firstName}, a returning customer.`
           : "Generate a warm greeting for a new user.";
 
-        // Call the LLM to generate the greeting dynamically
-        await gptService.completion(greetingText, interactionCount);
+        // Call the LLM to generate the greeting dynamically, and it should be a another "system" prompt
+        await gptService.completion(greetingText, interactionCount, "system");
 
         interactionCount += 1;
       } else if (
         msg.type === "prompt" ||
         (msg.type === "interrupt" && msg.voicePrompt)
       ) {
+        const shouldHandoff = await processUserInputForHandoff(msg.voicePrompt);
+
+        if (shouldHandoff) {
+          // Call handleLiveAgentHandoff without awaiting the handoff message
+          handleLiveAgentHandoff(
+            gptService,
+            endSessionService,
+            textService,
+            userProfile,
+            msg.voicePrompt
+          );
+          return; // End session here if live agent handoff is triggered
+        }
         // Process user prompt or interrupted prompt
         awaitingUserInput = true;
         await gptService.completion(msg.voicePrompt, interactionCount);
@@ -167,6 +266,17 @@ app.ws("/sockets", (ws) => {
       if (final) {
         awaitingUserInput = false; // Reset waiting state after final response
       }
+    });
+
+    // Listen for the 'endSession' event emitted by gpt-service-non-streaming
+    gptService.on("endSession", (handoffData) => {
+      // Log the handoffData for debugging purposes
+      console.log(
+        `[App.js] Received endSession event: ${JSON.stringify(handoffData)}`
+      );
+
+      // Call the endSessionService to handle the session termination
+      endSessionService.endSession(handoffData);
     });
   } catch (err) {
     console.log(err);

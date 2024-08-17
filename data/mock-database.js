@@ -188,7 +188,7 @@ const mockDatabase = {
       rent: 1050,
       moveInDate: "2024-09-15",
       features: ["1 bathroom", "open kitchen", "private balcony"],
-      petPolicy: "Cats and small dogs allowed with a fee.",
+      petPolicy: "No pets allowed.",
       fees: {
         applicationFee: 50,
         securityDeposit: 300,
@@ -197,7 +197,7 @@ const mockDatabase = {
       specials: "First month's rent free if you move in before 2024-09-30.",
       incomeRequirements: "Income must be 2.5x the rent.",
       utilities:
-        "Water, trash, and Wi-Fi included. Tenant pays electricity and gas.",
+        "Water, trash, and Wi-Fi internet included. Tenant pays electricity and gas.",
       location: {
         street: "1657 Coolidge Street",
         city: "Missoula",
@@ -210,8 +210,8 @@ const mockDatabase = {
       squareFeet: 600,
       rent: 1200,
       moveInDate: "2024-09-20",
-      features: ["1 bedroom", "1 bathroom", "walk-in closet", "balcony"],
-      petPolicy: "Cats and dogs allowed with a fee.",
+      features: ["1 bedroom", "1 bathroom", "walk-in closet"],
+      petPolicy: "Cats only. No dogs or any other animals.",
       fees: {
         applicationFee: 50,
         securityDeposit: 400,
@@ -220,7 +220,7 @@ const mockDatabase = {
       specials: "First month's rent free if you move in before 2024-09-25.",
       incomeRequirements: "Income must be 3x the rent.",
       utilities:
-        "Water, trash, gas, and Wi-Fi included. Tenant pays electricity.",
+        "Water, trash, gas, and Wi-Fi internet included. Tenant pays electricity.",
       location: {
         street: "1705 Adams Street",
         city: "Missoula",
@@ -234,7 +234,7 @@ const mockDatabase = {
       rent: 1800,
       moveInDate: "2024-09-10",
       features: ["2 bedrooms", "2 bathrooms", "walk-in closets", "balcony"],
-      petPolicy: "Cats and dogs allowed with a fee.",
+      petPolicy: "Cats and dogs allowed, but only 1 each.",
       fees: {
         applicationFee: 50,
         securityDeposit: 500,
@@ -243,7 +243,7 @@ const mockDatabase = {
       specials: "Waived application fee if you move in before 2024-09-20.",
       incomeRequirements: "Income must be 3x the rent.",
       utilities:
-        "Water, trash, gas, and Wi-Fi included. Tenant pays electricity.",
+        "Water, trash, gas, and Wi-Fi internet included. Tenant pays electricity.",
       location: {
         street: "1833 Jefferson Avenue",
         city: "Missoula",
@@ -263,7 +263,8 @@ const mockDatabase = {
         "private balcony",
         "extra storage",
       ],
-      petPolicy: "Cats and dogs allowed with a fee.",
+      petPolicy:
+        "Up to 2 dogs and 2 cats are allowed, and other small pets like hamsters are allwed as well. No more than 4 total pets.",
       fees: {
         applicationFee: 50,
         securityDeposit: 600,
@@ -272,7 +273,7 @@ const mockDatabase = {
       specials: "No move-in fees if you sign a 12-month lease.",
       incomeRequirements: "Income must be 3x the rent.",
       utilities:
-        "Water, trash, gas, and Wi-Fi included. Tenant pays electricity.",
+        "Water, trash, gas, and Wi-Fi internet included. Tenant pays electricity.",
       location: {
         street: "1945 Roosevelt Way",
         city: "Missoula",

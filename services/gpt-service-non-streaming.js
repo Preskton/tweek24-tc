@@ -3,7 +3,7 @@ const EventEmitter = require("events");
 const availableFunctions = require("../functions/available-functions");
 const tools = require("../functions/function-manifest");
 let prompt = require("../prompts/prompt");
-const welcomePrompt = require("../prompts/welcomePrompt");
+//const welcomePrompt = require("../prompts/welcomePrompt");
 const model = "gpt-4o";
 
 const currentDate = new Date().toLocaleDateString("en-US", {
@@ -15,56 +15,76 @@ const currentDate = new Date().toLocaleDateString("en-US", {
 
 prompt = prompt.replace("{{currentDate}}", currentDate);
 
-function getTtsMessageForTool(toolName, userProfile = null) {
-  const name = userProfile?.profile?.firstName
-    ? userProfile.profile.firstName
-    : ""; // Get the user's name if available
-
-  const nameIntroOptions = name
-    ? [
-        `Sure ${name},`,
-        `Okay ${name},`,
-        `Alright ${name},`,
-        `Got it ${name},`,
-        `Certainly ${name},`,
-      ]
-    : ["Sure,", "Okay,", "Alright,", "Got it,", "Certainly,"];
-
-  const randomIntro =
-    nameIntroOptions[Math.floor(Math.random() * nameIntroOptions.length)];
-
-  switch (toolName) {
-    case "listAvailableApartments":
-      return `${randomIntro} let me check on the available apartments for you.`;
-    case "checkExistingAppointments":
-      return `${randomIntro} I'll look up your existing appointments.`;
-    case "scheduleTour":
-      return `${randomIntro} I'll go ahead and schedule that tour for you.`;
-    case "checkAvailability":
-      return `${randomIntro} let me verify the availability for the requested time.`;
-    case "commonInquiries":
-      return `${randomIntro} let me check on that for you! Just a moment.`;
-    case "sendAppointmentConfirmationSms":
-      return `${randomIntro} I'll send that SMS off to you shortly, give it a few minutes and you should see it come through.`;
-    default:
-      return `${randomIntro} give me a moment while I fetch the information.`;
-  }
-}
-
 class GptService extends EventEmitter {
   constructor() {
     super();
     this.openai = new OpenAI();
     this.userContext = [
       { role: "system", content: prompt },
-      {
-        role: "assistant",
-        content: `${welcomePrompt}`,
-      },
+      // Only do this if you're going to use the WelcomePrompt in VoxRay config
+      // {
+      //   role: "assistant",
+      //   content: `${welcomePrompt}`,
+      // },
     ];
     this.smsSendNumber = null; // Store the "To" number (Twilio's "from")
     this.phoneNumber = null; // Store the "From" number (user's phone)
   }
+
+  // Arrow function for getTtsMessageForTool, so it can access `this`
+  getTtsMessageForTool = (toolName) => {
+    const name = this.userProfile?.profile?.firstName
+      ? this.userProfile.profile.firstName
+      : ""; // Get the user's name if available
+
+    const nameIntroOptions = name
+      ? [
+          `Sure ${name},`,
+          `Okay ${name},`,
+          `Alright ${name},`,
+          `Got it ${name},`,
+          `Certainly ${name},`,
+        ]
+      : ["Sure,", "Okay,", "Alright,", "Got it,", "Certainly,"];
+
+    const randomIntro =
+      nameIntroOptions[Math.floor(Math.random() * nameIntroOptions.length)];
+
+    let message;
+
+    switch (toolName) {
+      case "listAvailableApartments":
+        message = `${randomIntro} let me check on the available apartments for you.`;
+        break;
+      case "checkExistingAppointments":
+        message = `${randomIntro} I'll look up your existing appointments.`;
+        break;
+      case "scheduleTour":
+        message = `${randomIntro} I'll go ahead and schedule that tour for you.`;
+        break;
+      case "checkAvailability":
+        message = `${randomIntro} let me verify the availability for the requested time.`;
+        break;
+      case "commonInquiries":
+        message = `${randomIntro} one moment.`;
+        break;
+      case "sendAppointmentConfirmationSms":
+        message = `${randomIntro} I'll send that SMS off to you shortly, give it a few minutes and you should see it come through.`;
+        break;
+      case "liveAgentHandoff":
+        message = `${randomIntro} that may be a challenging topic to discuss, so I'm going to get you over to a live agent so they can discuss this with you, hang tight.`;
+        break;
+      default:
+        message = `${randomIntro} give me a moment while I fetch the information.`;
+        break;
+    }
+
+    // Log the message to the userContext in gptService
+    this.updateUserContext("assistant", message);
+
+    return message; // Return the message for TTS
+  };
+
   setUserProfile(userProfile) {
     this.userProfile = userProfile;
     if (userProfile) {
@@ -101,6 +121,46 @@ class GptService extends EventEmitter {
 
   updateUserContext(role, text) {
     this.userContext.push({ role: role, content: text });
+  }
+
+  async summarizeConversation() {
+    const summaryPrompt = "Summarize the conversation so far in 2-3 sentences.";
+
+    // // Log the full userContext before making the API call
+    // console.log(
+    //   `[GptService] Full userContext: ${JSON.stringify(
+    //     this.userContext,
+    //     null,
+    //     2
+    //   )}`
+    // );
+
+    // // Validate and log each message in userContext
+    // this.userContext.forEach((message, index) => {
+    //   if (typeof message.content !== "string") {
+    //     console.error(
+    //       `[GptService] Invalid content type at index ${index}: ${JSON.stringify(
+    //         message
+    //       )}`
+    //     );
+    //   } else {
+    //     console.log(
+    //       `[GptService] Valid content at index ${index}: ${message.content}`
+    //     );
+    //   }
+    // });
+
+    const summaryResponse = await this.openai.chat.completions.create({
+      model: model,
+      messages: [
+        ...this.userContext,
+        { role: "system", content: summaryPrompt },
+      ],
+      stream: false, // Non-streaming
+    });
+
+    const summary = summaryResponse.choices[0]?.message?.content || "";
+    return summary;
   }
 
   async completion(
@@ -145,10 +205,7 @@ class GptService extends EventEmitter {
 
           if (!dtmfTriggered) {
             // Emit TTS message related to the tool call
-            const ttsMessage = getTtsMessageForTool(
-              functionName,
-              this.userProfile
-            );
+            const ttsMessage = this.getTtsMessageForTool(functionName);
             this.emit("gptreply", ttsMessage, true, interactionCount); // Emit the TTS message immediately
           }
           // Inject phone numbers if it's the SMS function
@@ -185,6 +242,40 @@ class GptService extends EventEmitter {
             });
           }
 
+          if (functionName === "scheduleTour" && functionResponse.available) {
+            // Inject a system message to ask about SMS confirmation
+            systemMessages.push({
+              role: "system",
+              content:
+                "If the user agrees to receive an SMS confirmation, immediately trigger the 'sendAppointmentConfirmationSms' tool with the appointment details and the UserProfile. Do not ask for their phone number or any other details from the user.",
+            });
+          }
+
+          // Check if the tool call is for the 'liveAgentHandoff' function
+          if (functionName === "liveAgentHandoff") {
+            // Proceed with summarizing the conversation, including the latest messages
+            // Introduce a delay before summarizing the conversation
+            setTimeout(async () => {
+              const conversationSummary = await this.summarizeConversation();
+
+              this.emit("endSession", {
+                reasonCode: "live-agent-handoff",
+                reason: functionResponse.reason,
+                conversationSummary: conversationSummary,
+              });
+
+              // Log the emission for debugging
+              this.log(
+                `[GptService] Emitting endSession event with reason: ${functionResponse.reason}`
+              );
+            }, 3000); // 3-second delay
+
+            // Log the emission for debugging
+            this.log(
+              `[GptService] Emitting endSession event with reason: ${functionResponse.reason}`
+            );
+          }
+
           // Prepare the chat completion call payload with the tool result
           const completion_payload = {
             model: model,
@@ -209,14 +300,6 @@ class GptService extends EventEmitter {
             content: finalContent,
           });
 
-          if (functionName === "scheduleTour" && functionResponse.available) {
-            // Inject a system message to ask about SMS confirmation
-            this.userContext.push({
-              role: "system",
-              content:
-                "If the user agrees to receive an SMS confirmation, immediately trigger the 'sendAppointmentConfirmationSms' tool with the appointment details and the UserProfile. Do not ask for their phone number or any other details from the user.",
-            });
-          }
           // Emit the final response to the user
           this.emit("gptreply", finalContent, true, interactionCount);
           return; // Exit after processing the tool call
@@ -234,6 +317,18 @@ class GptService extends EventEmitter {
       }
     } catch (error) {
       this.log(`[GptService] Error during completion: ${error.message}`);
+
+      // Friendly response for any error encountered
+      const friendlyMessage =
+        "I apologize, that request might have been a bit too complex. Could you try asking one thing at a time? I'd be happy to help step by step!";
+
+      // Emit the friendly message to the user
+      this.emit("gptreply", friendlyMessage, true, interactionCount);
+
+      // Push the message into the assistant context
+      this.updateUserContext("assistant", friendlyMessage);
+
+      return; // Stop further processing
     }
   }
 }

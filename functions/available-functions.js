@@ -14,6 +14,25 @@ function normalizeTimeFormat(time) {
   return `${hour}:${minutes} ${period}`;
 }
 
+// Function to handle live agent handoff
+async function liveAgentHandoff(args) {
+  const { reason, context } = args;
+
+  // Log the reason for the handoff
+  console.log(`[LiveAgentHandoff] Initiating handoff with reason: ${reason}`);
+  if (context) {
+    console.log(`[LiveAgentHandoff] Context provided: ${context}`);
+  }
+
+  // Create a result message for the LLM after processing the handoff tool call
+  return {
+    reason: reason,
+    context: context || "No additional context provided",
+    message: `Handoff initiated due to: ${reason}. Context: ${
+      context || "No additional context provided."
+    }`,
+  };
+}
 // Function to send SMS confirmation for a scheduled tour
 async function sendAppointmentConfirmationSms(args) {
   const { appointmentDetails, to, from, userProfile } = args;
@@ -373,6 +392,7 @@ async function listAvailableApartments(args) {
 
 // Export all functions
 module.exports = {
+  liveAgentHandoff,
   sendAppointmentConfirmationSms,
   scheduleTour,
   checkAvailability,
