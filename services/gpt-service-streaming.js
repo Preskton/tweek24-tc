@@ -3,7 +3,7 @@ const EventEmitter = require("events");
 const availableFunctions = require("../functions/available-functions");
 const tools = require("../functions/function-manifest");
 let prompt = require("../prompts/prompt");
-const welcomePrompt = require("../prompts/welcomePrompt");
+//const welcomePrompt = require("../prompts/welcomePrompt");
 const model = "gpt-4o";
 
 const currentDate = new Date().toLocaleDateString("en-US", {
@@ -15,56 +15,74 @@ const currentDate = new Date().toLocaleDateString("en-US", {
 
 prompt = prompt.replace("{{currentDate}}", currentDate);
 
-function getTtsMessageForTool(toolName, userProfile = null) {
-  const name = userProfile?.profile?.firstName
-    ? userProfile.profile.firstName
-    : ""; // Get the user's name if available
-
-  const nameIntroOptions = name
-    ? [
-        `Sure ${name},`,
-        `Okay ${name},`,
-        `Alright ${name},`,
-        `Got it ${name},`,
-        `Certainly ${name},`,
-      ]
-    : ["Sure,", "Okay,", "Alright,", "Got it,", "Certainly,"];
-
-  const randomIntro =
-    nameIntroOptions[Math.floor(Math.random() * nameIntroOptions.length)];
-
-  switch (toolName) {
-    case "listAvailableApartments":
-      return `${randomIntro} let me check on the available apartments for you.`;
-    case "checkExistingAppointments":
-      return `${randomIntro} I'll look up your existing appointments.`;
-    case "scheduleTour":
-      return `${randomIntro} I'll go ahead and schedule that tour for you.`;
-    case "checkAvailability":
-      return `${randomIntro} let me verify the availability for the requested time.`;
-    case "commonInquiries":
-      return `${randomIntro} let me check on that for you! Just a moment.`;
-    case "sendAppointmentConfirmationSms":
-      return `${randomIntro} I'll send that SMS off to you shortly, give it a few minutes and you should see it come through.`;
-    default:
-      return `${randomIntro} give me a moment while I fetch the information.`;
-  }
-}
-
 class GptService extends EventEmitter {
   constructor() {
     super();
     this.openai = new OpenAI();
     this.userContext = [
       { role: "system", content: prompt },
-      {
-        role: "assistant",
-        content: `${welcomePrompt}`,
-      },
+      // Only do this if you're going to use the WelcomePrompt in VoxRay config
+      // {
+      //   role: "assistant",
+      //   content: `${welcomePrompt}`,
+      // },
     ];
     this.smsSendNumber = null; // Store the "To" number (Twilio's "from")
     this.phoneNumber = null; // Store the "From" number (user's phone)
   }
+  // Arrow function for getTtsMessageForTool, so it can access `this`
+  getTtsMessageForTool = (toolName) => {
+    const name = this.userProfile?.profile?.firstName
+      ? this.userProfile.profile.firstName
+      : ""; // Get the user's name if available
+
+    const nameIntroOptions = name
+      ? [
+          `Sure ${name},`,
+          `Okay ${name},`,
+          `Alright ${name},`,
+          `Got it ${name},`,
+          `Certainly ${name},`,
+        ]
+      : ["Sure,", "Okay,", "Alright,", "Got it,", "Certainly,"];
+
+    const randomIntro =
+      nameIntroOptions[Math.floor(Math.random() * nameIntroOptions.length)];
+
+    let message;
+
+    switch (toolName) {
+      case "listAvailableApartments":
+        message = `${randomIntro} let me check on the available apartments for you.`;
+        break;
+      case "checkExistingAppointments":
+        message = `${randomIntro} I'll look up your existing appointments.`;
+        break;
+      case "scheduleTour":
+        message = `${randomIntro} I'll go ahead and schedule that tour for you.`;
+        break;
+      case "checkAvailability":
+        message = `${randomIntro} let me verify the availability for the requested time.`;
+        break;
+      case "commonInquiries":
+        message = `${randomIntro} one moment.`;
+        break;
+      case "sendAppointmentConfirmationSms":
+        message = `${randomIntro} I'll send that SMS off to you shortly, give it a few minutes and you should see it come through.`;
+        break;
+      case "liveAgentHandoff":
+        message = `${randomIntro} that may be a challenging topic to discuss, so I'm going to get you over to a live agent so they can discuss this with you, hang tight.`;
+        break;
+      default:
+        message = `${randomIntro} give me a moment while I fetch the information.`;
+        break;
+    }
+
+    // Log the message to the userContext in gptService
+    this.updateUserContext("assistant", message);
+
+    return message; // Return the message for TTS
+  };
 
   setUserProfile(userProfile) {
     this.userProfile = userProfile;
@@ -104,6 +122,46 @@ class GptService extends EventEmitter {
     this.userContext.push({ role: role, content: text });
   }
 
+  async summarizeConversation() {
+    const summaryPrompt = "Summarize the conversation so far in 2-3 sentences.";
+
+    // // Log the full userContext before making the API call
+    // console.log(
+    //   `[GptService] Full userContext: ${JSON.stringify(
+    //     this.userContext,
+    //     null,
+    //     2
+    //   )}`
+    // );
+
+    // // Validate and log each message in userContext
+    // this.userContext.forEach((message, index) => {
+    //   if (typeof message.content !== "string") {
+    //     console.error(
+    //       `[GptService] Invalid content type at index ${index}: ${JSON.stringify(
+    //         message
+    //       )}`
+    //     );
+    //   } else {
+    //     console.log(
+    //       `[GptService] Valid content at index ${index}: ${message.content}`
+    //     );
+    //   }
+    // });
+
+    const summaryResponse = await this.openai.chat.completions.create({
+      model: model,
+      messages: [
+        ...this.userContext,
+        { role: "system", content: summaryPrompt },
+      ],
+      stream: false, // Non-streaming
+    });
+
+    const summary = summaryResponse.choices[0]?.message?.content || "";
+    return summary;
+  }
+
   async completion(
     text,
     interactionCount,
@@ -117,10 +175,6 @@ class GptService extends EventEmitter {
 
     this.updateUserContext(role, text);
 
-    let completeResponse = "";
-    let detectedTool = null;
-    let toolCallDetected = false; // Boolean to track tool call detection
-
     try {
       // Streaming is enabled
       const response = await this.openai.chat.completions.create({
@@ -130,125 +184,123 @@ class GptService extends EventEmitter {
         stream: true, // Always streaming
       });
 
+      let toolCallId = null; // To store the ID of the tool call at index 0
+      let toolCallFunctionName = ""; // To store the dynamically received function name
+      let argumentsAccumulator = ""; // To accumulate the 'arguments' data as chunks come in
+      let isToolCallActive = false; // To track when the tool call starts and finishes
+      let contentAccumulator = ""; // To accumulate the 'content' before tool_calls
+      let finalMessageObject = {
+        role: "assistant",
+        content: null,
+        tool_calls: [],
+        refusal: null,
+      }; // Final object to store content and tool call details
+
+      let lastContentChunk = ""; // To store the last content chunk received
+      let contentPending = false; // Flag to track if there's content pending to be emitted
+
       for await (const chunk of response) {
-        const content = chunk.choices[0]?.delta?.content || "";
-        completeResponse += content;
+        const { choices } = chunk;
 
-        // Log each chunk as it comes in
-        this.log(`[GptService] Chunk received: ${JSON.stringify(chunk)}`);
+        // // Log each chunk as it comes in
+        // this.log(`[GptService] Chunk received: ${JSON.stringify(chunk)}`);
 
-        // Check if a tool call is detected
-        const toolCall = chunk.choices[0]?.delta?.tool_calls;
-        if ((toolCall && toolCall[0]) || toolCallDetected) {
-          toolCallDetected = true; // Set the boolean to true
-          detectedTool = toolCall[0];
-          // Log the parsed toolCall
+        // Check if tool_calls are present in this chunk (could be part of multiple chunks)
+        if (choices[0]?.delta?.tool_calls) {
+          const toolCall = choices[0].delta.tool_calls[0];
+
+          if (!isToolCallActive) {
+            // this.log(`[GptService] Tool Call is Active Logic`);
+            // Initialize tool call when detected
+            if (toolCall?.id) {
+              toolCallId = toolCall.id;
+              toolCallFunctionName = toolCall.function.name; // Capture dynamic function name
+              isToolCallActive = true;
+
+              // // Log tool call detection
+              // this.log(
+              //   `[GptService] Parsed tool call: ${JSON.stringify(toolCall)}`
+              // );
+              // this.log(
+              //   `[GptService] Tool call DETAILS 1: ${JSON.stringify(
+              //     toolCall,
+              //     null,
+              //     2
+              //   )}`
+              // );
+              this.log(
+                `[GptService] Tool call detected: ${toolCall.function.name}`
+              );
+
+              // Set the content before the tool call starts
+              finalMessageObject.content = contentAccumulator.trim() || null;
+            }
+          }
+
+          // Accumulate arguments as they come in across chunks
+          if (toolCall?.function?.arguments) {
+            argumentsAccumulator += toolCall.function.arguments;
+          }
+        }
+
+        // Separate block to handle when finish_reason is 'tool_calls'
+        if (choices[0]?.finish_reason === "tool_calls") {
+          // this.log(`[GptService] Finish Reason is Tool Calls`);
+
+          let parsedArguments;
+          try {
+            // Parse accumulated arguments
+            parsedArguments = JSON.parse(argumentsAccumulator);
+
+            // Reset the accumulator for future tool calls
+            argumentsAccumulator = "";
+          } catch (error) {
+            console.error("Error parsing arguments:", error);
+            parsedArguments = argumentsAccumulator; // Fallback in case of parsing failure
+          }
+
+          // Finalize the tool_calls part of the message object
+          finalMessageObject.tool_calls.push({
+            id: toolCallId,
+            type: "function",
+            function: {
+              name: toolCallFunctionName,
+              arguments: JSON.stringify(parsedArguments), // Ensure arguments are stringified
+            },
+          });
+
+          // Now perform the tool logic as all tool_call data is ready
+          const functionToCall = availableFunctions[toolCallFunctionName];
+
           this.log(
-            `[GptService] Parsed tool call: ${JSON.stringify(toolCall)}`
-          );
-          this.log(
-            `[GptService] Tool call DETAILS 1: ${JSON.stringify(
-              toolCall[0],
-              null,
-              2
+            `[GptService] Calling function ${toolCallFunctionName} with arguments: ${JSON.stringify(
+              parsedArguments
             )}`
           );
 
-          this.log(
-            `[GptService] Tool call detected: ${toolCall[0].function.name}`
-          );
-        }
-
-        // Handle regular streaming if no tool call is detected
-        if (!toolCallDetected) {
-          this.emit("gptreply", content, false, interactionCount);
-        }
-
-        // Check if the current chunk is the last one in the stream
-        if (chunk.choices[0].finish_reason === "stop") {
-          this.log(`[GptService] In finish reason === STOP`);
-          if (!toolCallDetected) {
-            //only process here if the tool call wasn't detected
-            // No tool call, push the final response
-            this.userContext.push({
-              role: "assistant",
-              content: completeResponse,
-            });
-            this.emit("gptreply", completeResponse, true, interactionCount);
-            this.log(
-              `[GptService] Final GPT -> user context length: ${this.userContext.length}`
-            );
-            break; // Exit the loop since the response is complete
-          } else {
-            this.log(
-              `[GptService] Tool call DETAILS2: ${JSON.stringify(
-                toolCall[0],
-                null,
-                2
-              )}`
-            );
-
-            this.log(
-              `[GptService] Tool call detected 2: ${toolCall[0].function.name}`
-            );
-            detectedTool = toolCall[0];
-          }
-        }
-        // If we detected a tool call, process it now
-        if (toolCallDetected) {
-          this.log(`[GptService] In Tool Call logic`);
-          this.log(
-            `[GptService] DetectedTool: ${JSON.stringify(detectedTool)}`
-          );
-          const functionName = detectedTool.function.name;
-          // Check if arguments are not empty and valid JSON
-          let functionArgs;
-          try {
-            functionArgs = detectedTool.function.arguments
-              ? JSON.parse(detectedTool.function.arguments)
-              : {}; // Default to empty object if no arguments
-          } catch (error) {
-            this.log(
-              `[GptService] Error parsing function arguments: ${error.message}`
-            );
-            functionArgs = {}; // Default to empty object if parsing fails
-          }
-          const functionToCall = availableFunctions[functionName];
+          // if (!dtmfTriggered) {
+          //   // Emit TTS message related to the tool call
+          //   const ttsMessage = this.getTtsMessageForTool(toolCallFunctionName);
+          //   this.emit("gptreply", ttsMessage, true, interactionCount); // Emit the TTS message immediately
+          // }
 
           // Inject phone numbers if it's the SMS function
-          if (functionName === "sendAppointmentConfirmationSms") {
+          if (toolCallFunctionName === "sendAppointmentConfirmationSms") {
             const phoneNumbers = this.getPhoneNumbers();
-            functionArgs = { ...functionArgs, ...phoneNumbers };
+            parsedArguments = { ...parsedArguments, ...phoneNumbers };
           }
 
-          this.log(
-            `[GptService] Calling function ${functionName} with arguments: ${JSON.stringify(
-              functionArgs
-            )}`
-          );
+          const functionResponse = await functionToCall(parsedArguments);
 
-          if (!dtmfTriggered) {
-            // Emit TTS message related to the tool call
-            const ttsMessage = getTtsMessageForTool(
-              functionName,
-              this.userProfile
-            );
-            this.emit("gptreply", ttsMessage, true, interactionCount); // Emit the TTS message immediately
-          }
-
-          const functionResponse = await functionToCall(functionArgs);
-
-          let function_call_result_message;
-
-          function_call_result_message = {
+          let function_call_result_message = {
             role: "tool",
             content: JSON.stringify(functionResponse),
-            tool_call_id: detectedTool.id,
+            tool_call_id: toolCallId,
           };
 
           // Check if specific tool calls require additional system messages
           const systemMessages = [];
-          if (functionName === "listAvailableApartments") {
+          if (toolCallFunctionName === "listAvailableApartments") {
             systemMessages.push({
               role: "system",
               content:
@@ -257,12 +309,48 @@ class GptService extends EventEmitter {
           }
 
           // Personalize system messages based on user profile during relevant tool calls
-          if (functionName === "checkAvailability" && this.userProfile) {
+          if (
+            toolCallFunctionName === "checkAvailability" &&
+            this.userProfile
+          ) {
             const { firstName, moveInDate } = this.userProfile.profile;
             systemMessages.push({
               role: "system",
               content: `When checking availability for ${firstName}, remember that they are looking to move in on ${moveInDate}.`,
             });
+          }
+
+          if (
+            toolCallFunctionName === "scheduleTour" &&
+            functionResponse.available
+          ) {
+            // Inject a system message to ask about SMS confirmation
+            systemMessages.push({
+              role: "system",
+              content:
+                "If the user agrees to receive an SMS confirmation, immediately trigger the 'sendAppointmentConfirmationSms' tool with the appointment details and the UserProfile. Do not ask for their phone number or any other details from the user.",
+            });
+          }
+
+          // Check if the tool call is for the 'liveAgentHandoff' function
+          if (toolCallFunctionName === "liveAgentHandoff") {
+            setTimeout(async () => {
+              const conversationSummary = await this.summarizeConversation();
+
+              this.emit("endSession", {
+                reasonCode: "live-agent-handoff",
+                reason: functionResponse.reason,
+                conversationSummary: conversationSummary,
+              });
+
+              this.log(
+                `[GptService] Emitting endSession event with reason: ${functionResponse.reason}`
+              );
+            }, 3000); // 3-second delay
+
+            this.log(
+              `[GptService] Emitting endSession event with reason: ${functionResponse.reason}`
+            );
           }
 
           // Prepare the chat completion call payload with the tool result
@@ -271,7 +359,7 @@ class GptService extends EventEmitter {
             messages: [
               ...this.userContext,
               ...systemMessages, // Inject dynamic system messages when relevant
-              response.choices[0].message, // the tool_call message
+              finalMessageObject, // the tool_call message
               function_call_result_message, // The result of the tool call
             ],
           };
@@ -285,42 +373,106 @@ class GptService extends EventEmitter {
             }
           );
 
-          let finalResponse = "";
+          // Handle the final response stream (same logic as before)
+          let finalContentAccumulator = "";
           for await (const chunk of finalResponseStream) {
-            const content = chunk.choices[0]?.delta?.content || "";
-            finalResponse += content;
-            this.emit("gptreply", content, false, interactionCount);
+            const { choices } = chunk;
 
-            if (chunk.choices[0].finish_reason === "stop") {
+            // this.log(
+            //   `[GptService] Final Chunk received: ${JSON.stringify(chunk)}`
+            // );
+
+            // Accumulate the content from each chunk
+            if (choices[0]?.delta?.content) {
+              if (contentPending && lastContentChunk) {
+                this.emit(
+                  "gptreply",
+                  lastContentChunk,
+                  false,
+                  interactionCount
+                );
+              }
+
+              lastContentChunk = choices[0].delta.content;
+              finalContentAccumulator += lastContentChunk;
+              contentPending = true;
+            }
+
+            // Handle 'finish_reason' to detect the end of streaming
+            if (choices[0].finish_reason === "stop") {
+              // this.log(`[GptService] Final response STOP detected`);
+
+              if (lastContentChunk) {
+                this.emit("gptreply", lastContentChunk, true, interactionCount);
+              }
+
+              // Push the final accumulated content into userContext
               this.userContext.push({
                 role: "assistant",
-                content: finalResponse,
+                content: finalContentAccumulator.trim(),
               });
 
-              if (
-                functionName === "scheduleTour" &&
-                functionResponse.available
-              ) {
-                // Inject a system message to ask about SMS confirmation
-                this.userContext.push({
-                  role: "system",
-                  content:
-                    "If the user agrees to receive an SMS confirmation, immediately trigger the 'sendAppointmentConfirmationSms' tool with the appointment details and the UserProfile. Do not ask for their phone number or any other details from the user.",
-                });
-              }
-              this.emit("gptreply", content, true, interactionCount);
               this.log(
                 `[GptService] Final GPT -> user context length: ${this.userContext.length}`
               );
-              break; // Finish the loop
+              break; // Exit the loop once the final response is complete
             }
           }
+
+          // Reset tool call state
+          toolCallId = null;
+          toolCallFunctionName = "";
+          isToolCallActive = false;
+          argumentsAccumulator = "";
+        }
+
+        // Handle non-tool_call content chunks
+        if (choices[0]?.delta?.content) {
+          if (contentPending && lastContentChunk) {
+            this.emit("gptreply", lastContentChunk, false, interactionCount);
+          }
+
+          lastContentChunk = choices[0].delta.content;
+          contentAccumulator += lastContentChunk;
+          contentPending = true;
+        }
+
+        if (choices[0]?.delta?.refusal !== null) {
+          finalMessageObject.refusal = choices[0].delta.refusal;
+        }
+
+        // Check if the current chunk is the last one in the stream
+        if (choices[0].finish_reason === "stop") {
+          // this.log(`[GptService] In finish reason === STOP`);
+
+          if (lastContentChunk) {
+            this.emit("gptreply", lastContentChunk, true, interactionCount);
+          }
+
+          this.userContext.push({
+            role: "assistant",
+            content: contentAccumulator.trim(),
+          });
+
+          this.log(
+            `[GptService] Final GPT -> user context length: ${this.userContext.length}`
+          );
         }
       }
     } catch (error) {
-      this.log(
-        `[GptService] Error during tool call processing: ${error.stack}`
-      );
+      this.log(`[GptService] Error during completion: ${error.stack}`);
+
+      // Friendly response for any error encountered
+      const friendlyMessage =
+        "I apologize, that request might have been a bit too complex. Could you try asking one thing at a time? I'd be happy to help step by step!";
+
+      // Emit the friendly message to the user
+      this.emit("gptreply", friendlyMessage, true, interactionCount);
+
+      // Push the message into the assistant context
+      this.updateUserContext("assistant", friendlyMessage);
+
+      return; // Stop further processing
     }
   }
 }

@@ -74,6 +74,9 @@ class GptService extends EventEmitter {
       case "liveAgentHandoff":
         message = `${randomIntro} that may be a challenging topic to discuss, so I'm going to get you over to a live agent so they can discuss this with you, hang tight.`;
         break;
+      case "complexRequest":
+        message = `${randomIntro} that's a bit of a complex request, gimme just a minute to try to sort that out.`;
+        break;
       default:
         message = `${randomIntro} give me a moment while I fetch the information.`;
         break;
@@ -186,137 +189,160 @@ class GptService extends EventEmitter {
       });
 
       // Handle tool calls if detected
-      const toolCall = response.choices[0]?.message?.tool_calls;
-      if (toolCall && toolCall[0]) {
-        this.log(
-          `[GptService] Tool call detected: ${toolCall[0].function.name}`
-        );
+      const toolCalls = response.choices[0]?.message?.tool_calls;
+      if (toolCalls && toolCalls.length > 0) {
+        this.log(`[GptService] Tool calls length: ${toolCalls.length} tool(s)`);
 
-        const functionName = toolCall[0].function.name;
-        let functionArgs = JSON.parse(toolCall[0].function.arguments);
-        const functionToCall = availableFunctions[functionName];
+        const toolResponses = [];
+        let systemMessages = [];
+        let ttsMessage = ""; // Placeholder for TTS message
 
-        if (functionToCall) {
+        for (const toolCall of toolCalls) {
           this.log(
-            `[GptService] Calling function ${functionName} with arguments: ${JSON.stringify(
-              functionArgs
-            )}`
+            `[GptService] Tool call function: ${toolCall.function.name}`
           );
 
-          if (!dtmfTriggered) {
-            // Emit TTS message related to the tool call
-            const ttsMessage = this.getTtsMessageForTool(functionName);
-            this.emit("gptreply", ttsMessage, true, interactionCount); // Emit the TTS message immediately
-          }
-          // Inject phone numbers if it's the SMS function
-          if (functionName === "sendAppointmentConfirmationSms") {
-            const phoneNumbers = this.getPhoneNumbers();
-            functionArgs = { ...functionArgs, ...phoneNumbers };
-          }
-          const functionResponse = await functionToCall(functionArgs);
+          const functionName = toolCall.function.name;
+          let functionArgs = JSON.parse(toolCall.function.arguments);
+          const functionToCall = availableFunctions[functionName];
 
           let function_call_result_message;
 
-          function_call_result_message = {
-            role: "tool",
-            content: JSON.stringify(functionResponse),
-            tool_call_id: response.choices[0].message.tool_calls[0].id,
-          };
+          if (functionToCall) {
+            this.log(
+              `[GptService] Calling function ${functionName} with arguments: ${JSON.stringify(
+                functionArgs
+              )}`
+            );
 
-          // Check if specific tool calls require additional system messages
-          const systemMessages = [];
-          if (functionName === "listAvailableApartments") {
-            systemMessages.push({
-              role: "system",
-              content:
-                "Do not use asterisks (*) under any circumstances in this response. Summarize the available apartments in a readable format.",
-            });
-          }
+            // If there's more than one tool call, use a general TTS message
+            if (toolCalls.length > 1) {
+              ttsMessage = "Let me handle a few things for you, one moment.";
+            } else {
+              // For a single tool call, use the specific message
+              const functionName = toolCalls[0].function.name;
+              ttsMessage = this.getTtsMessageForTool(functionName);
+            }
 
-          // Personalize system messages based on user profile during relevant tool calls
-          if (functionName === "checkAvailability" && this.userProfile) {
-            const { firstName, moveInDate } = this.userProfile.profile;
-            systemMessages.push({
-              role: "system",
-              content: `When checking availability for ${firstName}, remember that they are looking to move in on ${moveInDate}.`,
-            });
-          }
+            // Inject phone numbers if it's the SMS function
+            if (functionName === "sendAppointmentConfirmationSms") {
+              const phoneNumbers = this.getPhoneNumbers();
+              functionArgs = { ...functionArgs, ...phoneNumbers };
+            }
+            const functionResponse = await functionToCall(functionArgs);
 
-          if (functionName === "scheduleTour" && functionResponse.available) {
-            // Inject a system message to ask about SMS confirmation
-            systemMessages.push({
-              role: "system",
-              content:
-                "If the user agrees to receive an SMS confirmation, immediately trigger the 'sendAppointmentConfirmationSms' tool with the appointment details and the UserProfile. Do not ask for their phone number or any other details from the user.",
-            });
-          }
+            function_call_result_message = {
+              role: "tool",
+              content: JSON.stringify(functionResponse),
+              tool_call_id: toolCall.id,
+            };
 
-          // Check if the tool call is for the 'liveAgentHandoff' function
-          if (functionName === "liveAgentHandoff") {
-            // Proceed with summarizing the conversation, including the latest messages
-            // Introduce a delay before summarizing the conversation
-            setTimeout(async () => {
-              const conversationSummary = await this.summarizeConversation();
-
-              this.emit("endSession", {
-                reasonCode: "live-agent-handoff",
-                reason: functionResponse.reason,
-                conversationSummary: conversationSummary,
+            // Check if specific tool calls require additional system messages
+            if (functionName === "listAvailableApartments") {
+              systemMessages.push({
+                role: "system",
+                content:
+                  "Do not use asterisks (*) under any circumstances in this response. Summarize the available apartments in a readable format.",
               });
+            }
+
+            // Personalize system messages based on user profile during relevant tool calls
+            if (functionName === "checkAvailability" && this.userProfile) {
+              const { firstName, moveInDate } = this.userProfile.profile;
+              systemMessages.push({
+                role: "system",
+                content: `When checking availability for ${firstName}, remember that they are looking to move in on ${moveInDate}.`,
+              });
+            }
+
+            if (functionName === "scheduleTour" && functionResponse.available) {
+              // Inject a system message to ask about SMS confirmation
+              systemMessages.push({
+                role: "system",
+                content:
+                  "If the user agrees to receive an SMS confirmation, immediately trigger the 'sendAppointmentConfirmationSms' tool with the appointment details and the UserProfile. Do not ask for their phone number or any other details from the user.",
+              });
+            }
+
+            // Check if the tool call is for the 'liveAgentHandoff' function
+            if (functionName === "liveAgentHandoff") {
+              // Proceed with summarizing the conversation, including the latest messages
+              // Introduce a delay before summarizing the conversation
+              setTimeout(async () => {
+                const conversationSummary = await this.summarizeConversation();
+
+                this.emit("endSession", {
+                  reasonCode: "live-agent-handoff",
+                  reason: functionResponse.reason,
+                  conversationSummary: conversationSummary,
+                });
+
+                // Log the emission for debugging
+                this.log(
+                  `[GptService] Emitting endSession event with reason: ${functionResponse.reason}`
+                );
+              }, 3000); // 3-second delay
 
               // Log the emission for debugging
               this.log(
                 `[GptService] Emitting endSession event with reason: ${functionResponse.reason}`
               );
-            }, 3000); // 3-second delay
+            }
 
-            // Log the emission for debugging
+            // Push the tool response to be used in the final completion call
+            toolResponses.push(function_call_result_message);
+          } else {
             this.log(
-              `[GptService] Emitting endSession event with reason: ${functionResponse.reason}`
+              `[GptService] No available function found for ${functionName}`
             );
           }
-
-          // Prepare the chat completion call payload with the tool result
-          const completion_payload = {
-            model: model,
-            messages: [
-              ...this.userContext,
-              ...systemMessages, // Inject dynamic system messages when relevant
-              response.choices[0].message, // the tool_call message
-              function_call_result_message, // The result of the tool call
-            ],
-          };
-
-          // Call the API again to get the final response after tool processing
-          const finalResponse = await this.openai.chat.completions.create({
-            model: completion_payload.model,
-            messages: completion_payload.messages,
-            stream: false, // Always non-streaming
-          });
-
-          const finalContent = finalResponse.choices[0]?.message?.content || "";
-          this.userContext.push({
-            role: "assistant",
-            content: finalContent,
-          });
-
-          // Emit the final response to the user
-          this.emit("gptreply", finalContent, true, interactionCount);
-          return; // Exit after processing the tool call
         }
-      }
 
-      // If no tool call is detected, emit the final completion response
-      const finalResponse = response.choices[0]?.message?.content || "";
-      if (finalResponse.trim()) {
+        // Emit a single TTS message after processing all tool calls
+        if (!dtmfTriggered && ttsMessage) {
+          this.emit("gptreply", ttsMessage, true, interactionCount);
+        }
+
+        // Prepare the chat completion call payload with the tool result
+        const completion_payload = {
+          model: model,
+          messages: [
+            ...this.userContext,
+            ...systemMessages, // Inject dynamic system messages when relevant
+            response.choices[0].message, // the tool_call message
+            ...toolResponses, // The result of the tool calls
+          ],
+        };
+
+        // Call the API again to get the final response after tool processing
+        const finalResponse = await this.openai.chat.completions.create({
+          model: completion_payload.model,
+          messages: completion_payload.messages,
+          stream: false, // Always non-streaming
+        });
+
+        const finalContent = finalResponse.choices[0]?.message?.content || "";
         this.userContext.push({
           role: "assistant",
-          content: finalResponse,
+          content: finalContent,
         });
-        this.emit("gptreply", finalResponse, true, interactionCount);
+
+        // Emit the final response to the user
+        this.emit("gptreply", finalContent, true, interactionCount);
+        return; // Exit after processing the tool call
+      } else {
+        // If no tool call is detected, emit the final completion response
+        const finalResponse = response.choices[0]?.message?.content || "";
+        if (finalResponse.trim()) {
+          this.userContext.push({
+            role: "assistant",
+            content: finalResponse,
+          });
+          this.emit("gptreply", finalResponse, true, interactionCount);
+        }
       }
     } catch (error) {
-      this.log(`[GptService] Error during completion: ${error.message}`);
+      this.log(`[GptService] Error during completion: ${error.stack}`);
 
       // Friendly response for any error encountered
       const friendlyMessage =
