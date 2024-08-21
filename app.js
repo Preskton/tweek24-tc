@@ -5,7 +5,7 @@ const express = require("express");
 const ExpressWs = require("express-ws");
 
 //const { GptService } = require("./services/gpt-service-streaming");
-const { GptService } = require("./services/gpt-service-non-streaming");
+const { GptService } = require("./services/gpt-service-streaming");
 const { TextService } = require("./services/text-service");
 const { EndSessionService } = require("./services/end-session-service");
 
@@ -160,6 +160,12 @@ async function handleDtmfInput(
 
 app.post("/incoming", (req, res) => {
   try {
+    //WITH WELCOME PROMPT
+    // const response = `<Response>
+    //   <Connect action="https://voxray-6456.twil.io/live-agent-handoff">
+    //     <Voxray url="wss://${process.env.SERVER}/sockets" welcomeGreeting="${welcomePrompt}" welcomeGreetingInterruptible="false" voice="en-US-Journey-O" dtmfDetection="true" interruptByDtmf="true" />
+    //   </Connect>
+    // </Response>`;
     const response = `<Response>
       <Connect action="https://voxray-6456.twil.io/live-agent-handoff">
         <Voxray url="wss://${process.env.SERVER}/sockets" voice="en-US-Journey-O" dtmfDetection="true" interruptByDtmf="true" />
@@ -229,8 +235,8 @@ app.ws("/sockets", (ws) => {
 
         // Now generate a dynamic personalized greeting based on whether the user is new or returning
         const greetingText = userProfile
-          ? `Generate a personalized greeting for ${userProfile.profile.firstName}, a returning customer.`
-          : "Generate a warm greeting for a new user.";
+          ? `Generate a warm, personalized greeting for ${userProfile.profile.firstName}, a returning prospect. Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent.`
+          : "Generate a warm greeting for a new potential prospect. Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent.";
 
         // Call the LLM to generate the greeting dynamically, and it should be a another "system" prompt
         await gptService.completion(greetingText, interactionCount, "system");

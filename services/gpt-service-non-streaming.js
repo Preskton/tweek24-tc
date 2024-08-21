@@ -260,7 +260,7 @@ class GptService extends EventEmitter {
               systemMessages.push({
                 role: "system",
                 content:
-                  "If the user agrees to receive an SMS confirmation, immediately trigger the 'sendAppointmentConfirmationSms' tool with the appointment details and the UserProfile. Do not ask for their phone number or any other details from the user.",
+                  "If the user agrees to receive an SMS confirmation, immediately trigger the 'sendAppointmentConfirmationSms' tool with the appointment details and the UserProfile. Do not ask for their phone number or any other details from the user. Do not call the 'scheduleTour' function again.",
               });
             }
 
@@ -313,6 +313,15 @@ class GptService extends EventEmitter {
             ...toolResponses, // The result of the tool calls
           ],
         };
+
+        // // Log the payload to the console
+        // console.log(
+        //   `[GptService] Completion payload: ${JSON.stringify(
+        //     completion_payload,
+        //     null,
+        //     2
+        //   )}`
+        // );
 
         // Call the API again to get the final response after tool processing
         const finalResponse = await this.openai.chat.completions.create({

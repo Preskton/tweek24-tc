@@ -21,7 +21,7 @@ class GptService extends EventEmitter {
     this.openai = new OpenAI();
     this.userContext = [
       { role: "system", content: prompt },
-      // Only do this if you're going to use the WelcomePrompt in VoxRay config
+      // //Only do this if you're going to use the WelcomePrompt in VoxRay config
       // {
       //   role: "assistant",
       //   content: `${welcomePrompt}`,
@@ -184,10 +184,8 @@ class GptService extends EventEmitter {
         stream: true, // Always streaming
       });
 
-      let toolCallId = null; // To store the ID of the tool call at index 0
-      let toolCallFunctionName = ""; // To store the dynamically received function name
-      let argumentsAccumulator = ""; // To accumulate the 'arguments' data as chunks come in
-      let isToolCallActive = false; // To track when the tool call starts and finishes
+      let toolCalls = {}; // Object to accumulate multiple tool calls by their ID
+      let functionCallResults = []; // Array to accumulate function call results
       let contentAccumulator = ""; // To accumulate the 'content' before tool_calls
       let finalMessageObject = {
         role: "assistant",
@@ -198,159 +196,164 @@ class GptService extends EventEmitter {
 
       let lastContentChunk = ""; // To store the last content chunk received
       let contentPending = false; // Flag to track if there's content pending to be emitted
+      let currentToolCallId = null; // To store the ID of the active tool call
 
       for await (const chunk of response) {
         const { choices } = chunk;
 
-        // // Log each chunk as it comes in
+        // Log each chunk as it comes in
         // this.log(`[GptService] Chunk received: ${JSON.stringify(chunk)}`);
 
         // Check if tool_calls are present in this chunk (could be part of multiple chunks)
         if (choices[0]?.delta?.tool_calls) {
           const toolCall = choices[0].delta.tool_calls[0];
 
-          if (!isToolCallActive) {
-            // this.log(`[GptService] Tool Call is Active Logic`);
-            // Initialize tool call when detected
-            if (toolCall?.id) {
-              toolCallId = toolCall.id;
-              toolCallFunctionName = toolCall.function.name; // Capture dynamic function name
-              isToolCallActive = true;
+          // Check if this is a new tool call (only when an ID is present)
+          if (toolCall.id && toolCall.id !== currentToolCallId) {
+            currentToolCallId = toolCall.id;
 
-              // // Log tool call detection
-              // this.log(
-              //   `[GptService] Parsed tool call: ${JSON.stringify(toolCall)}`
-              // );
-              // this.log(
-              //   `[GptService] Tool call DETAILS 1: ${JSON.stringify(
-              //     toolCall,
-              //     null,
-              //     2
-              //   )}`
-              // );
+            // Initialize new tool call if not already in the map
+            if (!toolCalls[currentToolCallId]) {
+              //Log the last content to an assistant message (IS THIS AN OPENAI BUG??? For some reason, the finish_reason never is "STOP" and we miss the final punctuation (eg. "One Moment" should be "One Moment." where the period is the final content, but that period is being sent back after the function call completes))
+              if (contentAccumulator.length > 0) {
+                this.userContext.push({
+                  role: "assistant",
+                  content: contentAccumulator.trim(),
+                });
+
+                this.log(
+                  `[GptService] Final GPT -> user context length: ${this.userContext.length}`
+                );
+              }
+
+              toolCalls[currentToolCallId] = {
+                id: currentToolCallId,
+                functionName: toolCall.function.name,
+                arguments: "", // Initialize an empty string for accumulating arguments
+              };
+
+              // Log tool call detection
               this.log(
-                `[GptService] Tool call detected: ${toolCall.function.name}`
+                `[GptService] Detected new tool call: ${toolCall.function.name}`
               );
-
-              // Set the content before the tool call starts
-              finalMessageObject.content = contentAccumulator.trim() || null;
+              // Log tool call detection
+              // this.log(
+              //   `[GptService] Log the choices: ${JSON.stringify(choices[0])}`
+              // );
             }
-          }
-
-          // Accumulate arguments as they come in across chunks
-          if (toolCall?.function?.arguments) {
-            argumentsAccumulator += toolCall.function.arguments;
           }
         }
 
         // Separate block to handle when finish_reason is 'tool_calls'
         if (choices[0]?.finish_reason === "tool_calls") {
-          // this.log(`[GptService] Finish Reason is Tool Calls`);
-
-          let parsedArguments;
-          try {
-            // Parse accumulated arguments
-            parsedArguments = JSON.parse(argumentsAccumulator);
-
-            // Reset the accumulator for future tool calls
-            argumentsAccumulator = "";
-          } catch (error) {
-            console.error("Error parsing arguments:", error);
-            parsedArguments = argumentsAccumulator; // Fallback in case of parsing failure
-          }
-
-          // Finalize the tool_calls part of the message object
-          finalMessageObject.tool_calls.push({
-            id: toolCallId,
-            type: "function",
-            function: {
-              name: toolCallFunctionName,
-              arguments: JSON.stringify(parsedArguments), // Ensure arguments are stringified
-            },
-          });
-
-          // Now perform the tool logic as all tool_call data is ready
-          const functionToCall = availableFunctions[toolCallFunctionName];
-
-          this.log(
-            `[GptService] Calling function ${toolCallFunctionName} with arguments: ${JSON.stringify(
-              parsedArguments
-            )}`
-          );
-
-          // if (!dtmfTriggered) {
-          //   // Emit TTS message related to the tool call
-          //   const ttsMessage = this.getTtsMessageForTool(toolCallFunctionName);
-          //   this.emit("gptreply", ttsMessage, true, interactionCount); // Emit the TTS message immediately
-          // }
-
-          // Inject phone numbers if it's the SMS function
-          if (toolCallFunctionName === "sendAppointmentConfirmationSms") {
-            const phoneNumbers = this.getPhoneNumbers();
-            parsedArguments = { ...parsedArguments, ...phoneNumbers };
-          }
-
-          const functionResponse = await functionToCall(parsedArguments);
-
-          let function_call_result_message = {
-            role: "tool",
-            content: JSON.stringify(functionResponse),
-            tool_call_id: toolCallId,
-          };
-
-          // Check if specific tool calls require additional system messages
+          this.log(`[GptService] All tool calls have been completed`);
           const systemMessages = [];
-          if (toolCallFunctionName === "listAvailableApartments") {
-            systemMessages.push({
-              role: "system",
-              content:
-                "Do not use asterisks (*) under any circumstances in this response. Summarize the available apartments in a readable format.",
+          // Process each tool call in the accumulated toolCalls object
+          for (const toolCallId in toolCalls) {
+            const toolCall = toolCalls[toolCallId];
+            let parsedArguments;
+            try {
+              // Parse accumulated arguments for this tool call
+              parsedArguments = JSON.parse(toolCall.arguments);
+            } catch (error) {
+              console.error("Error parsing arguments:", error);
+              parsedArguments = toolCall.arguments; // Fallback in case of parsing failure
+            }
+
+            // Finalize the tool call in the final message object
+            finalMessageObject.tool_calls.push({
+              id: toolCall.id,
+              type: "function",
+              function: {
+                name: toolCall.functionName,
+                arguments: JSON.stringify(parsedArguments), // Ensure arguments are stringified
+              },
             });
-          }
 
-          // Personalize system messages based on user profile during relevant tool calls
-          if (
-            toolCallFunctionName === "checkAvailability" &&
-            this.userProfile
-          ) {
-            const { firstName, moveInDate } = this.userProfile.profile;
-            systemMessages.push({
-              role: "system",
-              content: `When checking availability for ${firstName}, remember that they are looking to move in on ${moveInDate}.`,
+            // if (!dtmfTriggered) {
+            //   // Emit TTS message related to the tool call
+            //   const ttsMessage = this.getTtsMessageForTool(toolCallFunctionName);
+            //   this.emit("gptreply", ttsMessage, true, interactionCount); // Emit the TTS message immediately
+            // }
+
+            // Inject phone numbers if it's the SMS function
+            if (toolCall.functionName === "sendAppointmentConfirmationSms") {
+              const phoneNumbers = this.getPhoneNumbers();
+              parsedArguments = { ...parsedArguments, ...phoneNumbers };
+            }
+            // Now perform the tool logic as all tool_call data is ready
+            const functionToCall = availableFunctions[toolCall.functionName];
+
+            this.log(
+              `[GptService] Calling function ${
+                toolCall.functionName
+              } with arguments: ${JSON.stringify(parsedArguments)}`
+            );
+
+            // Call the respective function
+            const functionResponse = await functionToCall(parsedArguments);
+
+            // Construct the function call result message for this tool call
+            functionCallResults.push({
+              role: "tool",
+              content: JSON.stringify(functionResponse),
+              tool_call_id: toolCall.id,
             });
-          }
 
-          if (
-            toolCallFunctionName === "scheduleTour" &&
-            functionResponse.available
-          ) {
-            // Inject a system message to ask about SMS confirmation
-            systemMessages.push({
-              role: "system",
-              content:
-                "If the user agrees to receive an SMS confirmation, immediately trigger the 'sendAppointmentConfirmationSms' tool with the appointment details and the UserProfile. Do not ask for their phone number or any other details from the user.",
-            });
-          }
+            // Check if specific tool calls require additional system messages
 
-          // Check if the tool call is for the 'liveAgentHandoff' function
-          if (toolCallFunctionName === "liveAgentHandoff") {
-            setTimeout(async () => {
-              const conversationSummary = await this.summarizeConversation();
-
-              this.emit("endSession", {
-                reasonCode: "live-agent-handoff",
-                reason: functionResponse.reason,
-                conversationSummary: conversationSummary,
+            if (toolCall.functionName === "listAvailableApartments") {
+              systemMessages.push({
+                role: "system",
+                content:
+                  "Provide a summary of available apartments. Do not you symbols, and do not use markdown in your response.",
               });
+            }
+
+            // Personalize system messages based on user profile during relevant tool calls
+            if (
+              toolCall.functionName === "checkAvailability" &&
+              this.userProfile
+            ) {
+              const { firstName, moveInDate } = this.userProfile.profile;
+              systemMessages.push({
+                role: "system",
+                content: `When checking availability for ${firstName}, remember that they are looking to move in on ${moveInDate}.`,
+              });
+            }
+
+            if (
+              toolCall.functionName === "scheduleTour" &&
+              functionResponse.available
+            ) {
+              // Inject a system message to ask about SMS confirmation
+              systemMessages.push({
+                role: "system",
+                content:
+                  "If the user agrees to receive an SMS confirmation, immediately trigger the 'sendAppointmentConfirmationSms' tool with the appointment details and the UserProfile. Do not ask for their phone number or any other details from the user.",
+              });
+            }
+
+            // Check if the tool call is for the 'liveAgentHandoff' function
+            if (toolCall.functionName === "liveAgentHandoff") {
+              setTimeout(async () => {
+                const conversationSummary = await this.summarizeConversation();
+
+                this.emit("endSession", {
+                  reasonCode: "live-agent-handoff",
+                  reason: functionResponse.reason,
+                  conversationSummary: conversationSummary,
+                });
+
+                this.log(
+                  `[GptService] Emitting endSession event with reason: ${functionResponse.reason}`
+                );
+              }, 3000); // 3-second delay
 
               this.log(
                 `[GptService] Emitting endSession event with reason: ${functionResponse.reason}`
               );
-            }, 3000); // 3-second delay
-
-            this.log(
-              `[GptService] Emitting endSession event with reason: ${functionResponse.reason}`
-            );
+            }
           }
 
           // Prepare the chat completion call payload with the tool result
@@ -360,9 +363,18 @@ class GptService extends EventEmitter {
               ...this.userContext,
               ...systemMessages, // Inject dynamic system messages when relevant
               finalMessageObject, // the tool_call message
-              function_call_result_message, // The result of the tool call
+              ...functionCallResults, // The result of the tool call
             ],
           };
+
+          // Log the payload to the console
+          // console.log(
+          //   `[GptService] Completion payload: ${JSON.stringify(
+          //     completion_payload,
+          //     null,
+          //     2
+          //   )}`
+          // );
 
           // Call the API again with streaming for final response
           const finalResponseStream = await this.openai.chat.completions.create(
@@ -418,12 +430,20 @@ class GptService extends EventEmitter {
               break; // Exit the loop once the final response is complete
             }
           }
-
-          // Reset tool call state
-          toolCallId = null;
-          toolCallFunctionName = "";
-          isToolCallActive = false;
-          argumentsAccumulator = "";
+          // Reset tool call state after completion
+          toolCalls = {}; // Clear all stored tool calls
+          currentToolCallId = null; // Reset tool call ID
+        } else {
+          // If the Finish Reason isn't "tool_calls", then accumulate arguments for the current tool call
+          if (currentToolCallId && toolCalls[currentToolCallId]) {
+            if (choices[0]?.delta?.tool_calls[0]?.function?.arguments) {
+              toolCalls[currentToolCallId].arguments +=
+                choices[0].delta.tool_calls[0].function.arguments;
+              this.log(
+                `[GptService] Accumulated arguments for tool call ${currentToolCallId}: ${toolCalls[currentToolCallId].arguments}`
+              );
+            }
+          }
         }
 
         // Handle non-tool_call content chunks
@@ -443,7 +463,7 @@ class GptService extends EventEmitter {
 
         // Check if the current chunk is the last one in the stream
         if (choices[0].finish_reason === "stop") {
-          // this.log(`[GptService] In finish reason === STOP`);
+          this.log(`[GptService] In finish reason === STOP`);
 
           if (lastContentChunk) {
             this.emit("gptreply", lastContentChunk, true, interactionCount);
