@@ -5,7 +5,7 @@ const express = require("express");
 const ExpressWs = require("express-ws");
 
 //const { GptService } = require("./services/gpt-service-streaming");
-const { GptService } = require("./services/gpt-service-streaming");
+const { GptService } = require("./services/gpt-service-non-streaming");
 const { TextService } = require("./services/text-service");
 const { EndSessionService } = require("./services/end-session-service");
 
