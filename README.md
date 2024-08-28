@@ -5,12 +5,14 @@ Wouldn't it be neat if you could build an app that allowed you to chat with Chat
 Twilio gives you a superpower called [Media Streams](https://twilio.com/media-streams). Media Streams provides a Websocket connection to both sides of a phone call. You can get audio streamed to you, process it, and send audio back.
 
 This app serves as a demo exploring two services:
+
 - [Deepgram](https://deepgram.com/) for Speech to Text and Text to Speech
 - [OpenAI](https://openai.com) for GPT prompt completion
 
 These service combine to create a voice application that is remarkably better at transcribing, understanding, and speaking than traditional IVR systems.
 
 Features:
+
 - 🏁 Returns responses with low latency, typically 1 second by utilizing streaming.
 - ❗️ Allows the user to interrupt the GPT assistant and ask a different question.
 - 📔 Maintains chat history with GPT.
@@ -19,21 +21,26 @@ Features:
 ## Setting up for Development
 
 ### Prerequisites
+
 Sign up for the following services and get an API key for each:
+
 - [Deepgram](https://console.deepgram.com/signup)
 - [OpenAI](https://platform.openai.com/signup)
 
 If you're hosting the app locally, we also recommend using a tunneling service like [ngrok](https://ngrok.com) so that Twilio can forward audio to your app.
 
 ### 1. Start Ngrok
+
 Start an [ngrok](https://ngrok.com) tunnel for port `3000`:
 
 ```bash
 ngrok http 3000
 ```
+
 Ngrok will give you a unique URL, like `abc123.ngrok.io`. Copy the URL without http:// or https://. You'll need this URL in the next step.
 
 ### 2. Configure Environment Variables
+
 Copy `.env.example` to `.env` and configure the following environment variables:
 
 ```bash
@@ -54,6 +61,7 @@ TO_NUMBER='+13334445555'
 ```
 
 ### 3. Install Dependencies with NPM
+
 Install the necessary packages:
 
 ```bash
@@ -61,10 +69,13 @@ npm install
 ```
 
 ### 4. Start Your Server in Development Mode
+
 Run the following command:
+
 ```bash
 npm run dev
 ```
+
 This will start your app using `nodemon` so that any changes to your code automatically refreshes and restarts the server.
 
 ### 5. Configure an Incoming Phone Number
@@ -76,14 +87,16 @@ You can also use the Twilio CLI:
 ```bash
 twilio phone-numbers:update +1[your-twilio-number] --voice-url=https://your-server.ngrok.io/incoming
 ```
+
 This configuration tells Twilio to send incoming call audio to your app when someone calls your number. The app responds to the incoming call webhook with a [Stream](https://www.twilio.com/docs/voice/twiml/stream) TwiML verb that will connect an audio media stream to your websocket server.
 
 ## Application Workflow
+
 CallGPT coordinates the data flow between multiple different services including Deepgram, OpenAI, and Twilio Media Streams:
 ![Call GPT Flow](https://github.com/twilio-labs/call-gpt/assets/1418949/0b7fcc0b-d5e5-4527-bc4c-2ffb8931139c)
 
-
 ## Modifying the ChatGPT Context & Prompt
+
 Within `gpt-service.js` you'll find the settings for the GPT's initial context and prompt. For example:
 
 ```javascript
@@ -92,7 +105,9 @@ this.userContext = [
   { "role": "assistant", "content": "Hello! I understand you're looking for a pair of AirPods, is that correct?" },
 ],
 ```
+
 ### About the `system` Attribute
+
 The `system` attribute is background information for the GPT. As you build your use-case, play around with modifying the context. A good starting point would be to imagine training a new employee on their first day and giving them the basics of how to help a customer.
 
 There are some context prompts that will likely be helpful to include by default. For example:
@@ -109,17 +124,21 @@ These context items help shape a GPT so that it will act more naturally in a pho
 The `•` symbol context in particular is helpful for the app to be able to break sentences into natural chunks. This speeds up text-to-speech processing so that users hear audio faster.
 
 ### About the `content` Attribute
+
 This attribute is your default conversations starter for the GPT. However, you could consider making it more complex and customized based on personalized user data.
 
 In this case, our bot will start off by saying, "Hello! I understand you're looking for a pair of AirPods, is that correct?"
 
 ## Using Function Calls with GPT
+
 You can use function calls to interact with external APIs and data sources. For example, your GPT could check live inventory, check an item's price, or place an order.
 
 ### How Function Calling Works
+
 Function calling is handled within the `gpt-service.js` file in the following sequence:
 
 1. `gpt-service` loads `function-manifest.js` and requires (imports) all functions defined there from the `functions` directory. Our app will call these functions later when GPT gives us a function name and parameters.
+
 ```javascript
 tools.forEach((tool) => {
   const functionName = tool.function.name;
@@ -127,7 +146,7 @@ tools.forEach((tool) => {
 });
 ```
 
-2. When we call GPT for completions, we also pass in the same `function-manifest` JSON as the tools parameter. This allows the GPT to "know" what functions are available:
+1. When we call GPT for completions, we also pass in the same `function-manifest` JSON as the tools parameter. This allows the GPT to "know" what functions are available:
 
 ```javascript
 const stream = await this.openai.chat.completions.create({
@@ -137,18 +156,23 @@ const stream = await this.openai.chat.completions.create({
   stream: true,
 });
 ```
-3. When the GPT responds, it will send us a stream of chunks for the text completion. The GPT will tell us whether each text chunk is something to say to the user, or if it's a tool call that our app needs to execute.  This is indicated by the `deltas.tool_calls` key:
+
+1. When the GPT responds, it will send us a stream of chunks for the text completion. The GPT will tell us whether each text chunk is something to say to the user, or if it's a tool call that our app needs to execute.  This is indicated by the `deltas.tool_calls` key:
+
 ```javascript
 if (deltas.tool_calls) {
   // handle function calling
 }
 ```
-4. Once we have gathered all of the stream chunks about the tool call, our application can run the actual function code that we imported during the first step. The function name and parameters are provided by GPT:
+
+1. Once we have gathered all of the stream chunks about the tool call, our application can run the actual function code that we imported during the first step. The function name and parameters are provided by GPT:
+
 ```javascript
 const functionToCall = availableFunctions[functionName];
 const functionResponse = functionToCall(functionArgs);
 ```
-5. As the final step, we add the function response data into the conversation context like this:
+
+1. As the final step, we add the function response data into the conversation context like this:
 
 ```javascript
 this.userContext.push({
@@ -157,9 +181,11 @@ this.userContext.push({
   content: functionResponse,
 });
 ```
+
 We then ask the GPT to generate another completion including what it knows from the function call. This allows the GPT to respond to the user with details gathered from the external data source.
 
 ### Adding Custom Function Calls
+
 You can have your GPT call external data sources by adding functions to the `/functions` directory. Follow these steps:
 
 1. Create a function (e.g. `checkInventory.js` in `/functions`)
@@ -200,10 +226,13 @@ Example function manifest entry:
   },
 }
 ```
+
 #### Using `say` in the Function Manifest
+
 The `say` key in the function manifest allows you to define a sentence for the app to speak to the user before calling a function. For example, if a function will take a long time to call you might say "Give me a few moments to look that up for you..."
 
 ### Receiving Function Arguments
+
 When ChatGPT calls a function, it will provide an object with multiple attributes as a single argument. The parameters included in the object are based on the definition in your `function-manifest.js` file.
 
 In the `checkInventory` example above, `model` is a required argument, so the data passed to the function will be a single object like this:
@@ -213,6 +242,7 @@ In the `checkInventory` example above, `model` is a required argument, so the da
   model: "airpods pro"
 }
 ```
+
 For our `placeOrder` function, the arguments passed will look like this:
 
 ```javascript
@@ -221,20 +251,25 @@ For our `placeOrder` function, the arguments passed will look like this:
   quantity: 10
 }
 ```
+
 ### Returning Arguments to GPT
-Your function should always return a value: GPT will get confused when the function returns nothing, and may continue trying to call the function expecting an answer. If your function doesn't have any data to return to the GPT, you should still return a response with an instruction like "Tell the user that their request was processed successfully." This prevents the GPT from calling the function repeatedly and wasting tokens. 
+
+Your function should always return a value: GPT will get confused when the function returns nothing, and may continue trying to call the function expecting an answer. If your function doesn't have any data to return to the GPT, you should still return a response with an instruction like "Tell the user that their request was processed successfully." This prevents the GPT from calling the function repeatedly and wasting tokens.
 
 Any data that you return to the GPT should match the expected format listed in the `returns` key of `function-manifest.js`.
 
 ## Utility Scripts for Placing Calls
+
 The `scripts` directory contains two files that allow you to place test calls:
+
 - `npm run inbound` will place an automated call from a Twilio number to your app and speak a script. You can adjust this to your use-case, e.g. as an automated test.
 - `npm run outbound` will place an outbound call that connects to your app. This can be useful if you want the app to call your phone so that you can manually test it.
 
 ## Using Eleven Labs for Text to Speech
+
 Replace the Deepgram API call and array transformation in tts-service.js with the following call to Eleven Labs. Note that sometimes Eleven Labs will hit a rate limit (especially on the free trial) and return 400 errors with no audio (or a clicking sound).
 
-```
+```javascript
 try {
   const response = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM/stream?output_format=ulaw_8000&optimize_streaming_latency=3`,
@@ -265,13 +300,14 @@ try {
 }
 ```
 
-
 ## Testing with Jest
+
 Repeatedly calling the app can be a time consuming way to test your tool function calls. This project contains example unit tests that can help you test your functions without relying on the GPT to call them.
 
 Simple example tests are available in the `/test` directory. To run them, simply run `npm run test`.
 
 ## Deploy via Fly.io
+
 Fly.io is a hosting service similar to Heroku that simplifies the deployment process. Given Twilio Media Streams are sent and received from us-east-1, it's recommended to choose Fly's Ashburn, VA (IAD) region.
 
 > Deploying to Fly.io is not required to try the app, but can be helpful if your home internet speed is variable.
@@ -279,6 +315,7 @@ Fly.io is a hosting service similar to Heroku that simplifies the deployment pro
 Modify the app name `fly.toml` to be a unique value (this must be globally unique).
 
 Deploy the app using the Fly.io CLI:
+
 ```bash
 fly launch
 
@@ -286,6 +323,7 @@ fly deploy
 ```
 
 Import your secrets from your .env file to your deployed app:
+
 ```bash
 fly secrets import < .env
 ```
