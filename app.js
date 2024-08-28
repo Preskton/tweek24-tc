@@ -10,7 +10,7 @@ const { TextService } = require("./services/text-service");
 const { EndSessionService } = require("./services/end-session-service");
 
 const welcomePrompt = require("./prompts/welcomePrompt");
-const customerProfiles = require("./data/profiles.example");
+const customerProfiles = require("./data/toyotaProfile.js");
 
 const { handleIncomingCall } = require('./functions/voxrayWorkflow');
 handleIncomingCall('[CAR_ID]');
@@ -55,12 +55,12 @@ async function handleLiveAgentHandoff(
 
   const nameIntroOptions = name
     ? [
-        `Sure ${name},`,
-        `Okay ${name},`,
-        `Alright ${name},`,
-        `Got it ${name},`,
-        `Certainly ${name},`,
-      ]
+      `Sure ${name},`,
+      `Okay ${name},`,
+      `Alright ${name},`,
+      `Got it ${name},`,
+      `Certainly ${name},`,
+    ]
     : ["Sure,", "Okay,", "Alright,", "Got it,", "Certainly,"];
 
   const randomIntro =
@@ -115,12 +115,12 @@ async function handleDtmfInput(
 
   const nameIntroOptions = name
     ? [
-        `Sure ${name},`,
-        `Okay ${name},`,
-        `Alright ${name},`,
-        `Got it ${name},`,
-        `Certainly ${name},`,
-      ]
+      `Sure ${name},`,
+      `Okay ${name},`,
+      `Alright ${name},`,
+      `Got it ${name},`,
+      `Certainly ${name},`,
+    ]
     : ["Sure,", "Okay,", "Alright,", "Got it,", "Certainly,"];
 
   const randomIntro =
@@ -238,8 +238,8 @@ app.ws("/sockets", (ws) => {
 
         // Now generate a dynamic personalized greeting based on whether the user is new or returning
         const greetingText = userProfile
-          ? `Generate a warm, personalized greeting for ${userProfile.profile.firstName}, a returning prospect. Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent.`
-          : "Generate a warm greeting for a new potential prospect. Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent.";
+          ? `Generate a warm, personalized greeting for ${userProfile.profile.firstName}, a returning Toyota Connect subscriber. Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent.`
+          : "Generate a warm greeting for a new Toyota Connect subscriber. Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent.";
 
         // Call the LLM to generate the greeting dynamically, and it should be a another "system" prompt
         await gptService.completion(greetingText, interactionCount, "system");

@@ -1,4 +1,4 @@
-const { carProfiles, driverProfiles, emergencyContactProfiles } = require('../data/profiles.example');
+const { carProfiles, driverProfiles, emergencyContactProfiles } = require('../data/toyotaProfile.js');
 
 function handleIncomingCall(carId) {
     const carProfile = carProfiles[carId];

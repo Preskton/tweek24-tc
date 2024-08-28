@@ -2,8 +2,8 @@ const OpenAI = require("openai"); // or the appropriate module import
 const EventEmitter = require("events");
 const availableFunctions = require("../functions/available-functions");
 const tools = require("../functions/function-manifest");
-let prompt = require("../prompts/prompt");
-//const welcomePrompt = require("../prompts/welcomePrompt");
+let prompt = require("../prompts/toyotaPrompt");
+const welcomePrompt = require("../prompts/welcomePrompt");
 const model = "gpt-4o";
 
 const currentDate = new Date().toLocaleDateString("en-US", {
@@ -20,7 +20,7 @@ class GptService extends EventEmitter {
     super();
     this.openai = new OpenAI();
     this.userContext = [
-      { role: "system", content: prompt },
+      { role: "system", content: `${welcomePrompt}` },
       // Only do this if you're going to use the WelcomePrompt in VoxRay config
       // {
       //   role: "assistant",
