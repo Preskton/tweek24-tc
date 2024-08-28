@@ -9,8 +9,11 @@ const { GptService } = require("./services/gpt-service-non-streaming");
 const { TextService } = require("./services/text-service");
 const { EndSessionService } = require("./services/end-session-service");
 
-//const welcomePrompt = require("./prompts/welcomePrompt");
-const customerProfiles = require("./data/personalization");
+const welcomePrompt = require("./prompts/welcomePrompt");
+const customerProfiles = require("./data/profiles.example");
+
+const { handleIncomingCall } = require('./functions/voxrayWorkflow');
+handleIncomingCall('[CAR_ID]');
 
 const app = express();
 ExpressWs(app);
