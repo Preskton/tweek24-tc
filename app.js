@@ -9,8 +9,6 @@ const { GptService } = require("./services/gpt-service-non-streaming");
 const { TextService } = require("./services/text-service");
 const { EndSessionService } = require("./services/end-session-service");
 
-const welcomePrompt = require("./prompts/welcomePrompt");
-const customerProfiles = require("./data/toyotaProfile.js");
 const availableFunctions = require("./functions/available-functions");
 
 const { handleIncomingCall } = require('./functions/voxrayWorkflow');
@@ -194,13 +192,7 @@ app.ws("/sockets", (ws) => {
     let interactionCount = 0;
     let awaitingUserInput = false;
     let userProfile = null;
-    availableFunctions.lookupProfileInUnifiedProfiles(carUserId).then((carProfile) => {
-      let primaryDriverId = carProfile.additional_attributes.primaryDriverId;
-      availableFunctions.lookupProfileInUnifiedProfiles(primaryDriverId).then((userProfileRequest) => {
-        userProfile = userProfileRequest;
-        gptService.setUserProfile(userProfile);
-      });
-    });
+
     //console.log('carProfile: ', carProfile.profiles[0]);
     // Lookup the user profile from carProfile
     // Lookup the user profile from carProfile
@@ -244,21 +236,26 @@ app.ws("/sockets", (ws) => {
         gptService.setPhoneNumbers(smsSendNumber, phoneNumber);
 
 
+        availableFunctions.lookupProfileInUnifiedProfiles(undefined, phoneNumber).then(async (userProfileRequest) => {
+          userProfile = userProfileRequest;
+          gptService.setUserProfile(userProfile);
 
-        // Set the user profile within GptService
-        if (userProfile) {
-          gptService.setUserProfile(userProfile); // Pass the profile to GptService
-        }
+          // Now generate a dynamic personalized greeting based on whether the user is new or returning
+          console.log("userProfile: ", userProfile);
+          const greetingText = userProfile
+            ? `Generate a warm, personalized greeting for ${userProfile.given_name}, a returning Toyota Connect subscriber.' + 
+         'Avoid any messaging-style elements like numbered lists, special characters, or emojis, never read out a literal emoji.' + 
+         'Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent. Mention the ' +
+         'car that the user is driving. You can infer the details from the id in ${carUserId} it's in the format number-{carModel}.`
+            : "Generate a warm greeting for a new Toyota Connect subscriber. Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent." +
+            "don't ever read emoji's out loud. ";
 
-        // Now generate a dynamic personalized greeting based on whether the user is new or returning
-        const greetingText = userProfile
-          ? `Generate a warm, personalized greeting for ${userProfile.firstName}, a returning Toyota Connect subscriber. Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent.`
-          : "Generate a warm greeting for a new Toyota Connect subscriber. Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent.";
+          // Call the LLM to generate the greeting dynamically, and it should be a another "system" prompt
+          await gptService.completion(greetingText, interactionCount, "system");
 
-        // Call the LLM to generate the greeting dynamically, and it should be a another "system" prompt
-        await gptService.completion(greetingText, interactionCount, "system");
+          interactionCount += 1;
+        });
 
-        interactionCount += 1;
       } else if (
         msg.type === "prompt" ||
         (msg.type === "interrupt" && msg.voicePrompt)

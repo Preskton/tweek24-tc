@@ -297,11 +297,13 @@ async function checkExistingAppointments() {
   }
 }
 
-function lookupProfileInUnifiedProfiles(userId) {
+function lookupProfileInUnifiedProfiles(userId, phone) {
   //remove single quotes from the userId
-  if (userId.userId){
+  if (userId && userId.userId){
     userId = userId.userId;
   }
+  let key = phone ? "phone" : "user_id";
+  let value = phone ? phone : userId;
   console.log("Looking up profile in Unified Profiles for user ID:", userId);
   // construct url for UP lookup
   const url = 'https://preview.twilio.com/ProfileConnector/Profiles/Find';
@@ -316,8 +318,9 @@ function lookupProfileInUnifiedProfiles(userId) {
   // construct body, url-form-encoded
   const body = new URLSearchParams({
     'UniqueName': 'PD91b361bdd3e2f4e633bfaf4c9c9f2463',
-    'Attributes': `{"key": "user_id", "value": "${userId}"}`,
+    'Attributes': `{"key": "${key}", "value": "${value}"}`,
   });
+  console.log("body: ", body);
   // make the request
   const response =  fetch(url, {method: 'POST', headers, body});
   return response.then(responseRaw => {
