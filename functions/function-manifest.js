@@ -2,6 +2,24 @@ const tools = [
   {
     type: "function",
     function: {
+      name: "lookupProfileInUnifiedProfiles",
+      description:
+        "Looks up the user's profile in the unified profiles database.",
+      parameters: {
+        type: "object",
+        properties: {
+          userId: {
+            type: "string",
+            description: "The unique identifier of the user.",
+          }
+        },
+        required: ["userId"],
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "liveAgentHandoff",
       description:
         "Initiates a handoff to a live agent based on user request or sensitive topics.",

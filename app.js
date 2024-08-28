@@ -11,6 +11,7 @@ const { EndSessionService } = require("./services/end-session-service");
 
 const welcomePrompt = require("./prompts/welcomePrompt");
 const customerProfiles = require("./data/toyotaProfile.js");
+const availableFunctions = require("./functions/available-functions");
 
 const { handleIncomingCall } = require('./functions/voxrayWorkflow');
 handleIncomingCall('[CAR_ID]');
@@ -49,8 +50,8 @@ async function handleLiveAgentHandoff(
   userProfile,
   userInput
 ) {
-  const name = userProfile?.profile?.firstName
-    ? userProfile.profile.firstName
+  const name = userProfile?.firstName
+    ? userProfile.firstName
     : ""; // Get user's name if available
 
   const nameIntroOptions = name
@@ -184,6 +185,7 @@ app.post("/incoming", (req, res) => {
 app.ws("/sockets", (ws) => {
   try {
     ws.on("error", console.error);
+    const carUserId = "1-4runner";
 
     const gptService = new GptService();
     const endSessionService = new EndSessionService(ws);
@@ -192,6 +194,18 @@ app.ws("/sockets", (ws) => {
     let interactionCount = 0;
     let awaitingUserInput = false;
     let userProfile = null;
+    availableFunctions.lookupProfileInUnifiedProfiles(carUserId).then((carProfile) => {
+      let primaryDriverId = carProfile.additional_attributes.primaryDriverId;
+      availableFunctions.lookupProfileInUnifiedProfiles(primaryDriverId).then((userProfileRequest) => {
+        userProfile = userProfileRequest;
+        gptService.setUserProfile(userProfile);
+      });
+    });
+    //console.log('carProfile: ', carProfile.profiles[0]);
+    // Lookup the user profile from carProfile
+    // Lookup the user profile from carProfile
+
+    //console.log('userProfile: ', userProfile);
 
     // Incoming from MediaStream
     ws.on("message", async function message(data) {
@@ -221,6 +235,7 @@ app.ws("/sockets", (ws) => {
       }
 
       if (msg.type === "setup") {
+        console.log("[App.js] Setup message received.");
         // Extract the phone number from the setup message
         const phoneNumber = msg.from; // The Caller's phone number (this will only work for INBOUND calls at the moment)
         const smsSendNumber = msg.to; // Twilio's "to" number (we will use this as the 'from' number in SMS)
@@ -228,8 +243,7 @@ app.ws("/sockets", (ws) => {
         // Store the numbers in gptService for future SMS calls
         gptService.setPhoneNumbers(smsSendNumber, phoneNumber);
 
-        // Lookup the user profile from the customerProfiles object
-        userProfile = customerProfiles[phoneNumber];
+
 
         // Set the user profile within GptService
         if (userProfile) {
@@ -238,7 +252,7 @@ app.ws("/sockets", (ws) => {
 
         // Now generate a dynamic personalized greeting based on whether the user is new or returning
         const greetingText = userProfile
-          ? `Generate a warm, personalized greeting for ${userProfile.profile.firstName}, a returning Toyota Connect subscriber. Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent.`
+          ? `Generate a warm, personalized greeting for ${userProfile.firstName}, a returning Toyota Connect subscriber. Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent.`
           : "Generate a warm greeting for a new Toyota Connect subscriber. Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent.";
 
         // Call the LLM to generate the greeting dynamically, and it should be a another "system" prompt

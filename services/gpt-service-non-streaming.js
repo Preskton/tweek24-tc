@@ -91,18 +91,27 @@ class GptService extends EventEmitter {
   setUserProfile(userProfile) {
     this.userProfile = userProfile;
     if (userProfile) {
-      const { firstName } = userProfile.profile;
-      const historySummaries = userProfile.conversationHistory
-        .map(
-          (history) =>
-            `On ${history.date}, ${firstName} asked: ${history.summary}`
-        )
-        .join(" ");
-      // Add the conversation history to the system context
-      this.userContext.push({
-        role: "system",
-        content: `${firstName} has had previous interactions. Conversation history: ${historySummaries}`,
-      });
+      const { given_name } = userProfile;
+      if (userProfile) {
+        this.userContext.push({
+          role: "system",
+          content: `The user's profile contains the following information: ${JSON.stringify(userProfile)}.`,
+        });
+      }
+      if (userProfile.conversationHistory){
+        const historySummaries = userProfile.conversationHistory
+          .map(
+            (history) =>
+              `On ${history.date}, ${given_name} asked: ${history.summary}`
+          )
+          .join(" ");
+          // Add the conversation history to the system context
+          this.userContext.push({
+            role: "system",
+            content: `${given_name} has had previous interactions. Conversation history: ${historySummaries}`,
+          });
+        }
+
     }
   }
 

@@ -1,5 +1,6 @@
 const mockDatabase = require("../data/mock-database");
 const twilio = require("twilio");
+const { Buffer } = require('node:buffer');
 
 // Utility function to normalize various time formats to the database's 12-hour AM/PM format
 function normalizeTimeFormat(time) {
@@ -296,6 +297,37 @@ async function checkExistingAppointments() {
   }
 }
 
+function lookupProfileInUnifiedProfiles(userId) {
+  //remove single quotes from the userId
+  if (userId.userId){
+    userId = userId.userId;
+  }
+  console.log("Looking up profile in Unified Profiles for user ID:", userId);
+  // construct url for UP lookup
+  const url = 'https://preview.twilio.com/ProfileConnector/Profiles/Find';
+  //add headers
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const headers = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'Accept': 'application/json',
+    'Authorization': 'Basic ' + Buffer.from(accountSid + ':' + authToken).toString('base64')
+  };
+  // construct body, url-form-encoded
+  const body = new URLSearchParams({
+    'UniqueName': 'PD91b361bdd3e2f4e633bfaf4c9c9f2463',
+    'Attributes': `{"key": "user_id", "value": "${userId}"}`,
+  });
+  // make the request
+  const response =  fetch(url, {method: 'POST', headers, body});
+  return response.then(responseRaw => {
+    return responseRaw.json().then(data => {
+      return data.profiles[0].profile;
+    });
+  });
+}
+
+
 // Function to handle common inquiries
 async function commonInquiries({ inquiryType, apartmentType }) {
   // Map the inquiry types to the database field names
@@ -415,4 +447,5 @@ module.exports = {
   checkExistingAppointments,
   commonInquiries,
   listAvailableApartments,
+  lookupProfileInUnifiedProfiles,
 };
