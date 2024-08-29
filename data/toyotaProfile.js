@@ -15,6 +15,7 @@ const driverProfiles = {
     lastName: "[LAST_NAME]",
     phoneNumber: "+[E164_PHONE_NUMBER]",
     email: "[EMAIL_ADDRESS]",
+    dateOfBirth: "[DATE_OF_BIRTH]",
     emergencyContactId: "[EMERGENCY_CONTACT_ID]",
   },
 };

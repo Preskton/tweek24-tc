@@ -82,6 +82,27 @@ const tools = [
   {
     type: "function",
     function: {
+      name: "verifyNonEmergencyCalls",
+      description:
+        "Looks up the user's profile in the unified profiles database and verify email and Date Of Birth.",
+      strict: true,
+      parameters: {
+        type: "object",
+        properties: {
+          userId: {
+            type: "string",
+            description: "The unique identifier of the user.",
+          }
+        },
+        required: ["userId"],
+        additionalProperties: false
+      }
+
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "liveAgentHandoff",
       description:
         "Initiates a handoff to a live agent based on user request or sensitive topics.",

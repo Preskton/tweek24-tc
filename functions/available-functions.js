@@ -77,6 +77,48 @@ function lookupProfileInUnifiedProfiles(key, identifier) {
   });
 }
 
+function verifyNonEmergencyCalls(userId, phone, email, dateOfBirth) {
+  if (userId && userId.userId) {
+    userId = userId.userId;
+  }
+  let key = phone ? "phone" : "user_id";
+  let value = phone ? phone : userId;
+  console.log("Looking up profile in Unified Profiles for user ID:", userId);
+
+  // Construct URL for UP lookup
+  const url = 'https://preview.twilio.com/ProfileConnector/Profiles/Find';
+
+  // Add headers
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const headers = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'Accept': 'application/json',
+    'Authorization': 'Basic ' + Buffer.from(accountSid + ':' + authToken).toString('base64')
+  };
+
+  // Construct body, url-form-encoded
+  const body = new URLSearchParams({
+    'UniqueName': 'PD91b361bdd3e2f4e633bfaf4c9c9f2463',
+    'Attributes': JSON.stringify({
+      key: key,
+      value: value,
+      email: email,
+      dateOfBirth: dateOfBirth
+    })
+  });
+
+  console.log("body: ", body);
+
+  // Make the request
+  const response = fetch(url, { method: 'POST', headers, body });
+  return response.then(responseRaw => {
+    return responseRaw.json().then(data => {
+      return data.profiles[0].profile;
+    });
+  });
+}
+
 
 
 
@@ -87,6 +129,6 @@ module.exports = {
     lookupProfileByCarId,
     lookupProfileByDriverId,
     lookupProfileByEmergencyContactId,
-    lookupProfileByPhone
-
+    lookupProfileByPhone,
+    verifyNonEmergencyCalls
 };
