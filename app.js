@@ -11,8 +11,6 @@ const { EndSessionService } = require("./services/end-session-service");
 
 const availableFunctions = require("./functions/available-functions");
 
-const { handleIncomingCall } = require('./functions/voxrayWorkflow');
-handleIncomingCall('[CAR_ID]');
 
 const app = express();
 ExpressWs(app);

@@ -53,23 +53,8 @@ class GptService extends EventEmitter {
     let message;
 
     switch (toolName) {
-      case "listAvailableApartments":
-        message = `${randomIntro} let me check on the available apartments for you.`;
-        break;
-      case "checkExistingAppointments":
-        message = `${randomIntro} I'll look up your existing appointments.`;
-        break;
-      case "scheduleTour":
-        message = `${randomIntro} I'll go ahead and schedule that tour for you.`;
-        break;
-      case "checkAvailability":
-        message = `${randomIntro} let me verify the availability for the requested time.`;
-        break;
-      case "commonInquiries":
-        message = `${randomIntro} one moment.`;
-        break;
-      case "sendAppointmentConfirmationSms":
-        message = `${randomIntro} I'll send that SMS off to you shortly, give it a few minutes and you should see it come through.`;
+      case "lookupProfileInUnifiedProfiles":
+        message = `${randomIntro} sure thing, one moment while I look up that information for you.`;
         break;
       case "liveAgentHandoff":
         message = `${randomIntro} that may be a challenging topic to discuss, so I'm going to get you over to a live agent so they can discuss this with you, hang tight.`;
@@ -234,10 +219,7 @@ class GptService extends EventEmitter {
             }
 
             // Inject phone numbers if it's the SMS function
-            if (functionName === "sendAppointmentConfirmationSms") {
-              const phoneNumbers = this.getPhoneNumbers();
-              functionArgs = { ...functionArgs, ...phoneNumbers };
-            }
+
             const functionResponse = await functionToCall(functionArgs);
 
             function_call_result_message = {
@@ -246,32 +228,13 @@ class GptService extends EventEmitter {
               tool_call_id: toolCall.id,
             };
 
-            // Check if specific tool calls require additional system messages
-            if (functionName === "listAvailableApartments") {
-              systemMessages.push({
-                role: "system",
-                content:
-                  "Do not use asterisks (*) under any circumstances in this response. Summarize the available apartments in a readable format.",
-              });
-            }
-
             // Personalize system messages based on user profile during relevant tool calls
-            if (functionName === "checkAvailability" && this.userProfile) {
-              const { firstName, moveInDate } = this.userProfile.profile;
-              systemMessages.push({
-                role: "system",
-                content: `When checking availability for ${firstName}, remember that they are looking to move in on ${moveInDate}.`,
-              });
-            }
-
-            if (functionName === "scheduleTour" && functionResponse.available) {
-              // Inject a system message to ask about SMS confirmation
-              systemMessages.push({
-                role: "system",
-                content:
-                  "If the user agrees to receive an SMS confirmation, immediately trigger the 'sendAppointmentConfirmationSms' tool with the appointment details and the UserProfile. Do not ask for their phone number or any other details from the user. Do not call the 'scheduleTour' function again.",
-              });
-            }
+            // if (functionName === "lookupProfileInUnifiedProfiles" && this.userProfile) {
+            //   systemMessages.push({
+            //     role: "system",
+            //     content: `When looking up information, remember to use the correct ID. If it's about a Car, use the CarID, if it's about the driver, use the PrimaryDriverId, if it's about an emergency, use the EmergencyContact ID.`,
+            //   });
+            // }
 
             // Check if the tool call is for the 'liveAgentHandoff' function
             if (functionName === "liveAgentHandoff") {
