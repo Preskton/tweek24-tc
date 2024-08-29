@@ -21,18 +21,37 @@ async function liveAgentHandoff(args) {
   };
 }
 
+function lookupProfileByCarId(carId) {
+    if (carId && carId.carId){
+      carId = carId.carId;
+    }
+    return lookupProfileInUnifiedProfiles("user_id", carId);
+}
+
+function lookupProfileByDriverId(primaryDriverId) {
+    if (primaryDriverId && primaryDriverId.primaryDriverId){
+        primaryDriverId = primaryDriverId.primaryDriverId;
+    }
+    return lookupProfileInUnifiedProfiles("user_id", primaryDriverId);
+}
+
+function lookupProfileByEmergencyContactId(emergencyContactId) {
+    if (emergencyContactId && emergencyContactId.emergencyContactId){
+        emergencyContactId = emergencyContactId.emergencyContactId;
+    }
+    return lookupProfileInUnifiedProfiles("user_id", emergencyContactId);
+}
+
+function lookupProfileByPhone(phone) {
+    return lookupProfileInUnifiedProfiles("phone", phone);
+}
 
 
+function lookupProfileInUnifiedProfiles(key, identifier) {
 
-
-function lookupProfileInUnifiedProfiles(userId, phone) {
   //remove single quotes from the userId
-  if (userId && userId.userId){
-    userId = userId.userId;
-  }
-  let key = phone ? "phone" : "user_id";
-  let value = phone ? phone : userId;
-  console.log("Looking up profile in Unified Profiles for user ID:", userId);
+
+  console.log(`Looking up profile in Unified Profiles for Key: ${key} Identifier: ${identifier} and `);
   // construct url for UP lookup
   const url = 'https://preview.twilio.com/ProfileConnector/Profiles/Find';
   //add headers
@@ -46,7 +65,7 @@ function lookupProfileInUnifiedProfiles(userId, phone) {
   // construct body, url-form-encoded
   const body = new URLSearchParams({
     'UniqueName': 'PD91b361bdd3e2f4e633bfaf4c9c9f2463',
-    'Attributes': `{"key": "${key}", "value": "${value}"}`,
+    'Attributes': `{"key": "${key}", "value": "${identifier}"}`,
   });
   console.log("body: ", body);
   // make the request
@@ -65,4 +84,9 @@ function lookupProfileInUnifiedProfiles(userId, phone) {
 module.exports = {
   liveAgentHandoff,
   lookupProfileInUnifiedProfiles,
+    lookupProfileByCarId,
+    lookupProfileByDriverId,
+    lookupProfileByEmergencyContactId,
+    lookupProfileByPhone
+
 };

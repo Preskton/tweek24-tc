@@ -234,7 +234,7 @@ app.ws("/sockets", (ws) => {
         gptService.setPhoneNumbers(smsSendNumber, phoneNumber);
 
 
-        availableFunctions.lookupProfileInUnifiedProfiles(undefined, phoneNumber).then(async (userProfileRequest) => {
+        availableFunctions.lookupProfileByPhone( phoneNumber).then(async (userProfileRequest) => {
           userProfile = userProfileRequest;
           gptService.setUserProfile(userProfile);
 

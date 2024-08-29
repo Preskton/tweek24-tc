@@ -2,22 +2,81 @@ const tools = [
   {
     type: "function",
     function: {
-      name: "lookupProfileInUnifiedProfiles",
+      name: "lookupProfileByCarId",
+      description:
+        "Looks up the car's profile in the unified profiles database.",
+      strict: true,
+      parameters: {
+        type: "object",
+        properties: {
+          carId: {
+            type: "string",
+            description: "The ID of the car to use for lookup",
+          }
+        },
+        required: ["carId"],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "lookupProfileByDriverId",
+      description:
+        "Looks up the driver's profile in the unified profiles database.",
+      strict: true,
+      parameters: {
+        type: "object",
+        properties: {
+          primaryDriverId: {
+            type: "string",
+            description: "The ID of the driver to use for lookup",
+          }
+        },
+        required: ["primaryDriverId"],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "lookupProfileByEmergencyContactId",
+      description:
+        "Looks up the emergency contact's profile in the unified profiles database.",
+      strict: true,
+      parameters: {
+        type: "object",
+        properties: {
+          emergencyContactId: {
+            type: "string",
+            description: "The ID of the emergency contact.",
+          }
+        },
+        required: ["emergencyContactId"],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "lookupProfileByPhone",
       description:
         "Looks up the user's profile in the unified profiles database.",
       strict: true,
       parameters: {
         type: "object",
         properties: {
-          userId: {
+          phone: {
             type: "string",
-            description: "The unique identifier of the user.",
+            description: "The phone number to lookup.",
           }
         },
-        required: ["userId"],
+        required: ["phone"],
         additionalProperties: false
       }
-
     }
   },
   {

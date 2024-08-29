@@ -54,7 +54,7 @@ class GptService extends EventEmitter {
 
     switch (toolName) {
       case "lookupProfileInUnifiedProfiles":
-        message = `${randomIntro} sure thing, one moment while I look up that information for you.`;
+        message = `${randomIntro}, looking that up now.`;
         break;
       case "liveAgentHandoff":
         message = `${randomIntro} that may be a challenging topic to discuss, so I'm going to get you over to a live agent so they can discuss this with you, hang tight.`;
@@ -228,13 +228,13 @@ class GptService extends EventEmitter {
               tool_call_id: toolCall.id,
             };
 
-            // Personalize system messages based on user profile during relevant tool calls
-            // if (functionName === "lookupProfileInUnifiedProfiles" && this.userProfile) {
-            //   systemMessages.push({
-            //     role: "system",
-            //     content: `When looking up information, remember to use the correct ID. If it's about a Car, use the CarID, if it's about the driver, use the PrimaryDriverId, if it's about an emergency, use the EmergencyContact ID.`,
-            //   });
-            // }
+            //Personalize system messages based on user profile during relevant tool calls
+            if (functionName === "lookupProfileInUnifiedProfiles" && this.userProfile) {
+              systemMessages.push({
+                role: "system",
+                content: `When looking up information in this tool, never use the user_id field, always use a referential id, such as the primaryDriverId or carId.`,
+              });
+            }
 
             // Check if the tool call is for the 'liveAgentHandoff' function
             if (functionName === "liveAgentHandoff") {
