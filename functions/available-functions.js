@@ -21,26 +21,6 @@ async function liveAgentHandoff(args) {
   };
 }
 
-function lookupProfileByCarId(carId) {
-    if (carId && carId.carId){
-      carId = carId.carId;
-    }
-    return lookupProfileInUnifiedProfiles("user_id", carId);
-}
-
-function lookupProfileByDriverId(primaryDriverId) {
-    if (primaryDriverId && primaryDriverId.primaryDriverId){
-        primaryDriverId = primaryDriverId.primaryDriverId;
-    }
-    return lookupProfileInUnifiedProfiles("user_id", primaryDriverId);
-}
-
-function lookupProfileByEmergencyContactId(emergencyContactId) {
-    if (emergencyContactId && emergencyContactId.emergencyContactId){
-        emergencyContactId = emergencyContactId.emergencyContactId;
-    }
-    return lookupProfileInUnifiedProfiles("user_id", emergencyContactId);
-}
 
 function lookupProfileByPhone(phone) {
     return lookupProfileInUnifiedProfiles("phone", phone);
@@ -77,46 +57,48 @@ function lookupProfileInUnifiedProfiles(key, identifier) {
   });
 }
 
-function verifyNonEmergencyCalls(userId, phone, email, dateOfBirth) {
+/**
+ * Verifies the information provided by the user.
+ * @param userId The unique identifier of the user.
+ * @param email The email address
+ */
+async function verifyInformation(userId, email) {
   if (userId && userId.userId) {
     userId = userId.userId;
   }
-  let key = phone ? "phone" : "user_id";
-  let value = phone ? phone : userId;
-  console.log("Looking up profile in Unified Profiles for user ID:", userId);
+  return lookupProfileInUnifiedProfiles("userId", userId).then(profile => {
+    console.log(`profile: ${profile}, email: ${email}`);
+    if (profile.email === email) {
+      console.log("verification succeeded, email matched!");
+      return finishVerification( {result: true, keysUsedToValidate: ["email"]});
+    } else {
+      console.log("verification failed, email not match!");
+      return finishVerification({result: false, keysUsedToValidate: ["email"]});
+    }
+  });
 
-  // Construct URL for UP lookup
-  const url = 'https://preview.twilio.com/ProfileConnector/Profiles/Find';
+}
 
-  // Add headers
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const headers = {
-    'Content-Type': 'application/x-www-form-urlencoded',
-    'Accept': 'application/json',
-    'Authorization': 'Basic ' + Buffer.from(accountSid + ':' + authToken).toString('base64')
+
+async function finishVerification(args) {
+  const { result, keysUsedToValidate } = args;
+
+  // Log the result of the verification process
+  console.log(
+    `[FinishVerification] Verification result: ${
+      result ? "Success" : "Failure"
+    }. Keys used to validate: ${keysUsedToValidate.join(", ")}`
+  );
+
+  //Do something that invokes an action?
+  // Create a result message for the LLM after processing the finish verification tool call
+  return {
+    result: result,
+    keysUsedToValidate: keysUsedToValidate,
+    message: `Verification ${
+      result ? "succeeded" : "failed"
+    }. Keys used to validate: ${keysUsedToValidate.join(", ")}`,
   };
-
-  // Construct body, url-form-encoded
-  const body = new URLSearchParams({
-    'UniqueName': 'PD91b361bdd3e2f4e633bfaf4c9c9f2463',
-    'Attributes': JSON.stringify({
-      key: key,
-      value: value,
-      email: email,
-      dateOfBirth: dateOfBirth
-    })
-  });
-
-  console.log("body: ", body);
-
-  // Make the request
-  const response = fetch(url, { method: 'POST', headers, body });
-  return response.then(responseRaw => {
-    return responseRaw.json().then(data => {
-      return data.profiles[0].profile;
-    });
-  });
 }
 
 
@@ -126,9 +108,7 @@ function verifyNonEmergencyCalls(userId, phone, email, dateOfBirth) {
 module.exports = {
   liveAgentHandoff,
   lookupProfileInUnifiedProfiles,
-    lookupProfileByCarId,
-    lookupProfileByDriverId,
-    lookupProfileByEmergencyContactId,
-    lookupProfileByPhone,
-    verifyNonEmergencyCalls
+  lookupProfileByPhone,
+  verifyInformation,
+  finishVerification
 };

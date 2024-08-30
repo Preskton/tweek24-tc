@@ -237,21 +237,13 @@ app.ws("/sockets", (ws) => {
         availableFunctions.lookupProfileByPhone( phoneNumber).then(async (userProfileRequest) => {
           userProfile = userProfileRequest;
           gptService.setUserProfile(userProfile);
-
-          // Now generate a dynamic personalized greeting based on whether the user is new or returning
-          console.log("userProfile: ", userProfile);
-          const greetingText = userProfile
-            ? `Generate a warm, personalized greeting for ${userProfile.given_name}, a returning Toyota Connect subscriber.' + 
-         'Avoid any messaging-style elements like numbered lists, special characters, or emojis, never read out a literal emoji.' + 
-         'Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent. Mention the ' +
-         'car that the user is driving. You can infer the details from the id in ${carUserId} it's in the format number-{carModel}.`
-            : "Generate a warm greeting for a new Toyota Connect subscriber. Keep it brief, and use informal/casual language so you sound like a friend, not a call center agent." +
-            "don't ever read emoji's out loud. ";
-
-          // Call the LLM to generate the greeting dynamically, and it should be a another "system" prompt
-          await gptService.completion(greetingText, interactionCount, "system");
-
-          interactionCount += 1;
+          availableFunctions.lookupProfileInUnifiedProfiles("userId", userProfile.carId).then(async (carProfile) => {
+            userProfile.carProfile = carProfile;
+            console.log("userProfile: ", userProfile);
+            const greetingText = "Hello, please provide the following information for verification: your email address.";
+            await gptService.completion(greetingText, interactionCount, "system");
+            interactionCount += 1;
+          });
         });
 
       } else if (

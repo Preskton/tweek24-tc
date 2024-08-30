@@ -2,87 +2,7 @@ const tools = [
   {
     type: "function",
     function: {
-      name: "lookupProfileByCarId",
-      description:
-        "Looks up the car's profile in the unified profiles database.",
-      strict: true,
-      parameters: {
-        type: "object",
-        properties: {
-          carId: {
-            type: "string",
-            description: "The ID of the car to use for lookup",
-          }
-        },
-        required: ["carId"],
-        additionalProperties: false
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "lookupProfileByDriverId",
-      description:
-        "Looks up the driver's profile in the unified profiles database.",
-      strict: true,
-      parameters: {
-        type: "object",
-        properties: {
-          primaryDriverId: {
-            type: "string",
-            description: "The ID of the driver to use for lookup",
-          }
-        },
-        required: ["primaryDriverId"],
-        additionalProperties: false
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "lookupProfileByEmergencyContactId",
-      description:
-        "Looks up the emergency contact's profile in the unified profiles database.",
-      strict: true,
-      parameters: {
-        type: "object",
-        properties: {
-          emergencyContactId: {
-            type: "string",
-            description: "The ID of the emergency contact.",
-          }
-        },
-        required: ["emergencyContactId"],
-        additionalProperties: false
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "lookupProfileByPhone",
-      description:
-        "Looks up the user's profile in the unified profiles database.",
-      strict: true,
-      parameters: {
-        type: "object",
-        properties: {
-          phone: {
-            type: "string",
-            description: "The phone number to lookup.",
-          }
-        },
-        required: ["phone"],
-        additionalProperties: false
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "verifyNonEmergencyCalls",
+      name: "verifyInformation",
       description:
         "Looks up the user's profile in the unified profiles database and verify email and Date Of Birth.",
       strict: true,
@@ -92,32 +12,38 @@ const tools = [
           userId: {
             type: "string",
             description: "The unique identifier of the user.",
+          },
+          email: {
+            type: "string",
+            description: "The email address of the user"
           }
         },
-        required: ["userId"],
+        required: ["userId", "email"],
         additionalProperties: false
       }
-
     }
   },
   {
     type: "function",
     function: {
-      name: "liveAgentHandoff",
+      name: "finishVerification",
       description:
-        "Initiates a handoff to a live agent based on user request or sensitive topics.",
+        "Finishes the verification process.",
       parameters: {
         type: "object",
         properties: {
-          reason: {
-            type: "string",
+          result: {
+            type: "boolean",
             description:
-              "The reason for the handoff, such as user request, legal issue, financial matter, or other sensitive topics.",
+              "Whether or not the user was successfully verified.",
           },
-          context: {
-            type: "string",
+          keysUsedToValidate: {
+            type: "array",
+            items: {
+              type: "string",
+            },
             description:
-              "Any relevant conversation context or details leading to the handoff.",
+              "The keys used to validate the user, such as VIN or email address.",
           },
         },
         required: ["reason"],

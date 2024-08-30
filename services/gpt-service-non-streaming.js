@@ -221,32 +221,23 @@ class GptService extends EventEmitter {
             // Inject phone numbers if it's the SMS function
 
             const functionResponse = await functionToCall(functionArgs);
-
+            console.log(`[GptService] Function response: ${JSON.stringify(functionResponse)}`);
             function_call_result_message = {
               role: "tool",
               content: JSON.stringify(functionResponse),
               tool_call_id: toolCall.id,
             };
 
-            //Personalize system messages based on user profile during relevant tool calls
-            if (functionName === "lookupProfileInUnifiedProfiles" && this.userProfile) {
-              systemMessages.push({
-                role: "system",
-                content: `When looking up information in this tool, never use the user_id field, always use a referential id, such as the primaryDriverId or carId.`,
-              });
-            }
-
             // Check if the tool call is for the 'liveAgentHandoff' function
-            if (functionName === "liveAgentHandoff") {
+            if (functionName === "verifyInformation") {
               // Proceed with summarizing the conversation, including the latest messages
               // Introduce a delay before summarizing the conversation
               setTimeout(async () => {
-                const conversationSummary = await this.summarizeConversation();
 
                 this.emit("endSession", {
-                  reasonCode: "live-agent-handoff",
-                  reason: functionResponse.reason,
-                  conversationSummary: conversationSummary,
+                  reasonCode: "verification-finished",
+                  validation_successful: functionResponse.result,
+                  content: JSON.stringify(functionResponse),
                 });
 
                 // Log the emission for debugging
